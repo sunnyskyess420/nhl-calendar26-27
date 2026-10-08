@@ -6,6 +6,12 @@ let gamesData = [];
 
 // NHL API endpoint
 const NHL_API_BASE = 'https://statsapi.web.nhl.com/api/v1';
+// CORS proxy options (try multiple in order)
+const CORS_PROXIES = [
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url=',
+    'https://cors-anywhere.herokuapp.com/'
+];
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,16 +58,31 @@ async function loadSchedule(date) {
     const month = date.getMonth() + 1;
 
     try {
-        // Fetch schedule from NHL API
-        const response = await fetch(
-            `${NHL_API_BASE}/schedule?startDate=${year}-${month.toString().padStart(2, '0')}-01&endDate=${year}-${month.toString().padStart(2, '0')}-31`
-        );
+        // Try to fetch schedule from NHL API via multiple CORS proxies
+        const apiUrl = `${NHL_API_BASE}/schedule?startDate=${year}-${month.toString().padStart(2, '0')}-01&endDate=${year}-${month.toString().padStart(2, '0')}-31`;
+        let data = null;
+        let lastError = null;
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch NHL schedule');
+        for (const proxy of CORS_PROXIES) {
+            try {
+                const proxyUrl = proxy + encodeURIComponent(apiUrl);
+                const response = await fetch(proxyUrl);
+
+                if (response.ok) {
+                    data = await response.json();
+                    break;
+                }
+            } catch (err) {
+                lastError = err;
+                console.log(`Proxy ${proxy} failed, trying next...`);
+                continue;
+            }
         }
 
-        const data = await response.json();
+        if (!data) {
+            throw new Error('All CORS proxies failed');
+        }
+
         gamesData = processScheduleData(data);
         renderCalendar(date);
     } catch (error) {
