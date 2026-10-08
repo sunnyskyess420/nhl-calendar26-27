@@ -152,6 +152,8 @@ h1 {
     margin: 0 0.2em;
     color: #fff;
 }
+
+.game-item:hover {
     background: rgba(227, 24, 55, 0.9);
     transform: scale(1.02);
 }
