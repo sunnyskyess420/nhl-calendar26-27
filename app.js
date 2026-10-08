@@ -188,26 +188,35 @@ function renderCalendar(date) {
             gamesData[dateKey].forEach(game => {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item';
-                // Create logo elements
-                const awayLogo = document.createElement('img');
-                awayLogo.src = game.teams.away.team.logo;
-                awayLogo.alt = game.teams.away.team.abbreviation;
-                awayLogo.className = 'team-logo';
-                const homeLogo = document.createElement('img');
-                homeLogo.src = game.teams.home.team.logo;
-                homeLogo.alt = game.teams.home.team.abbreviation;
-                homeLogo.className = 'team-logo';
+// Create logo elements using static NHL logo URLs
+const awayLogo = document.createElement('img');
+awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
+awayLogo.alt = game.teams.away.team.abbreviation;
+awayLogo.className = 'team-logo';
+const awayAbbr = document.createElement('span');
+awayAbbr.textContent = game.teams.away.team.abbreviation;
+awayAbbr.className = 'team-abbr';
+
+const homeLogo = document.createElement('img');
+homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
+homeLogo.alt = game.teams.home.team.abbreviation;
+homeLogo.className = 'team-logo';
+const homeAbbr = document.createElement('span');
+homeAbbr.textContent = game.teams.home.team.abbreviation;
+homeAbbr.className = 'team-abbr';
                 // Text separator
                 const separator = document.createElement('span');
                 separator.textContent = ' @ ';
                 // Append logos and separator
                 gameItem.appendChild(awayLogo);
-                gameItem.appendChild(separator);
-                gameItem.appendChild(homeLogo);
-                gameItem.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    showGameDetails(game);
-                });
+gameItem.appendChild(awayAbbr);
+gameItem.appendChild(separator);
+gameItem.appendChild(homeLogo);
+gameItem.appendChild(homeAbbr);
+gameItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showGameDetails(game);
+});
                 dayCell.appendChild(gameItem);
             });
         }

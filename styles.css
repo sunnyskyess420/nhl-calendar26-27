@@ -141,7 +141,17 @@ h1 {
     white-space: nowrap;
 }
 
-.game-item:hover {
+.team-logo {
+    height: 1.6em;
+    width: auto;
+    vertical-align: middle;
+    margin: 0 0.2em;
+}
+.team-abbr {
+    font-size: 0.9em;
+    margin: 0 0.2em;
+    color: #fff;
+}
     background: rgba(227, 24, 55, 0.9);
     transform: scale(1.02);
 }
