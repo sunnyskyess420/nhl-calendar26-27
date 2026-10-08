@@ -19,7 +19,11 @@ A Progressive Web App (PWA) that displays NHL game schedules in a beautiful cale
 
 ## How to Use
 
-### Quick Start
+### Online (GitHub Pages)
+
+Visit the live site at: **https://sunnyskyess420.github.io/nhl-calendar/**
+
+### Local
 
 1. **Double-click** either of these files to launch the app:
    - `Start NHL Calendar.cmd` (recommended)
@@ -45,7 +49,7 @@ A Progressive Web App (PWA) that displays NHL game schedules in a beautiful cale
 
 ```
 nhl-calendar/
-├── site/
+├── docs/
 │   ├── index.html          # Main HTML file
 │   ├── styles.css          # Styling and layout
 │   ├── app.js              # Application logic and NHL API integration
@@ -81,14 +85,14 @@ The app fetches schedule data directly from the NHL's official API, ensuring acc
 
 ### Changing Colors
 
-Edit `site/styles.css` to customize the color scheme:
+Edit `docs/styles.css` to customize the color scheme:
 - Primary color: `#e31837` (NHL red)
 - Background: `#1a1a2e` to `#16213e` (dark blue gradient)
 - Highlight: `#00ff00` (green for today)
 
 ### Modifying the Date Range
 
-By default, the app allows navigation through all months. If you want to restrict to the current NHL season only, modify the `loadSchedule` function in `site/app.js`.
+By default, the app allows navigation through all months. If you want to restrict to the current NHL season only, modify the `loadSchedule` function in `docs/app.js`.
 
 ## Troubleshooting
 
