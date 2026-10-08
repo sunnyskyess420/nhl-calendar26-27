@@ -147,3 +147,5 @@ To edit files directly on GitHub: open the repo â†’ switch to `vercel` branch â†
 ## Questions?
 
 If anything breaks, paste the exact error message to your AI assistant along with this README. The architecture is simple enough that any AI can debug it.
+
+<!-- trigger redeploy 2026-10-08T04:47:29Z -->
