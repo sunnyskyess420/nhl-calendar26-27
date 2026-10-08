@@ -1,5 +1,5 @@
 // Service Worker for NHL Calendar PWA
-const CACHE_NAME = 'nhl-calendar-v2';
+const CACHE_NAME = 'nhl-calendar-v4-vercel';
 const urlsToCache = [
     './',
     './index.html',
@@ -16,15 +16,22 @@ self.addEventListener('install', (event) => {
             .then((cache) => {
                 return cache.addAll(urlsToCache);
             })
+            .then(() => self.skipWaiting())
     );
 });
 
-// Fetch event - serve from cache for local assets, pass through for API calls
+// Fetch event - serve from cache for local assets, NEVER cache API calls
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Skip caching for external API calls and CORS proxies
+    // Skip caching for external requests
     if (url.origin !== location.origin) {
+        return;
+    }
+
+    // NEVER cache API calls — always go to network so schedule is fresh
+    if (url.pathname.startsWith('/api/')) {
+        event.respondWith(fetch(event.request));
         return;
     }
 
@@ -59,7 +66,7 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (purges old mock-data caches too)
 self.addEventListener('activate', (event) => {
     const cacheWhitelist = [CACHE_NAME];
 
@@ -72,6 +79,6 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });

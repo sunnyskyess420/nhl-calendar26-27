@@ -1,17 +1,9 @@
 // NHL Calendar PWA
-// Fetches NHL schedule and displays it in a calendar format
+// Fetches NHL schedule from our Vercel serverless function at /api/schedule
+// (no more CORS proxies, no more mock data — real games only)
 
 let currentDate = new Date();
 let gamesData = [];
-
-// NHL API endpoint
-const NHL_API_BASE = 'https://statsapi.web.nhl.com/api/v1';
-// CORS proxy options (try multiple in order)
-const CORS_PROXIES = [
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/raw?url=',
-    'https://cors-anywhere.herokuapp.com/'
-];
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
-            // Unregister old service workers to clear cache
+            // Unregister old service workers to clear any cached mock data
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (const registration of registrations) {
                 await registration.unregister();
@@ -56,7 +48,7 @@ function setupEventListeners() {
     });
 }
 
-// Load NHL schedule for a specific month
+// Load NHL schedule for a specific month via our Vercel API
 async function loadSchedule(date) {
     showLoading(true);
     hideError();
@@ -65,36 +57,27 @@ async function loadSchedule(date) {
     const month = date.getMonth() + 1;
 
     try {
-        // Try to fetch schedule from NHL API via multiple CORS proxies
-        const apiUrl = `${NHL_API_BASE}/schedule?startDate=${year}-${month.toString().padStart(2, '0')}-01&endDate=${year}-${month.toString().padStart(2, '0')}-31`;
-        let data = null;
-        let lastError = null;
+        const response = await fetch(`/api/schedule?year=${year}&month=${month}`);
 
-        for (const proxy of CORS_PROXIES) {
+        if (!response.ok) {
+            let msg = `Server returned ${response.status}`;
             try {
-                const proxyUrl = proxy + encodeURIComponent(apiUrl);
-                const response = await fetch(proxyUrl);
-
-                if (response.ok) {
-                    data = await response.json();
-                    break;
-                }
-            } catch (err) {
-                lastError = err;
-                console.log(`Proxy ${proxy} failed, trying next...`);
-                continue;
-            }
+                const errBody = await response.json();
+                if (errBody && errBody.error) msg = errBody.error;
+            } catch (_) {}
+            throw new Error(msg);
         }
 
-        if (!data) {
-            throw new Error('All CORS proxies failed');
-        }
-
+        const data = await response.json();
         gamesData = processScheduleData(data);
         renderCalendar(date);
     } catch (error) {
         console.error('Error loading schedule:', error);
-        showError('Failed to load NHL schedule. Please check your internet connection and try again.');
+        showError(
+            'Could not load NHL schedule. ' +
+            'The site may be updating — try refreshing in a minute. ' +
+            'Details: ' + error.message
+        );
     } finally {
         showLoading(false);
     }
