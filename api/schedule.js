@@ -6,39 +6,28 @@ const https = require('https');
 const NHL_API_HOST = 'api-web.nhle.com';
 const NHL_TIMEOUT_MS = 12000;
 
-function fetchHttps(urlPath) {
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: NHL_API_HOST,
-      path: urlPath,
+const fetchHttps = async (urlPath) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NHL_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${NHL_API_HOST}${urlPath}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'nhl-calendar/1.0',
       },
-      timeout: NHL_TIMEOUT_MS,
-    }, (res) => {
-      let body = '';
-      res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            resolve(JSON.parse(body));
-          } catch (e) {
-            reject(new Error(`Invalid JSON from NHL API (${res.statusCode})`));
-          }
-        } else {
-          reject(new Error(`NHL API returned ${res.statusCode}`));
-        }
-      });
+      signal: controller.signal,
     });
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy(new Error('Request timed out'));
-    });
-    req.end();
-  });
-}
+    clearTimeout(timeout);
+    if (!response.ok) {
+      throw new Error(`NHL API returned ${response.status}`);
+    }
+    return await response.json();
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+};
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
