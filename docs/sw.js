@@ -1,5 +1,5 @@
 // Service Worker for NHL Calendar PWA
-const CACHE_NAME = 'nhl-calendar-v1';
+const CACHE_NAME = 'nhl-calendar-v2';
 const urlsToCache = [
     './',
     './index.html',
@@ -19,8 +19,15 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - serve from cache for local assets, pass through for API calls
 self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
+    // Skip caching for external API calls and CORS proxies
+    if (url.origin !== location.origin) {
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {

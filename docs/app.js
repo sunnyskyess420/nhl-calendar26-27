@@ -24,6 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
 async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
+            // Unregister old service workers to clear cache
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+                await registration.unregister();
+            }
+
+            // Register new service worker
             await navigator.serviceWorker.register('sw.js');
             console.log('Service Worker registered');
         } catch (error) {
