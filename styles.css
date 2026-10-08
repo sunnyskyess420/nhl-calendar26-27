@@ -245,6 +245,264 @@ h1 {
     color: #fff;
 }
 
+/* ============================================================================
+   Enriched game details popup - status badge, score display, goals list
+   ============================================================================ */
+
+.detail-loading {
+    text-align: center;
+    padding: 30px 0;
+    color: #888;
+    font-style: italic;
+}
+
+.detail-error {
+    background: rgba(227, 24, 55, 0.2);
+    border-left: 3px solid #e31837;
+    padding: 10px 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+    font-size: 0.85em;
+    color: #ffb3b3;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 15px;
+    font-size: 0.9em;
+    font-weight: 600;
+    margin-bottom: 18px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.badge-live {
+    background: #00aa55;
+    color: #fff;
+    animation: pulse-live 2s ease-in-out infinite;
+}
+
+.badge-final {
+    background: #555;
+    color: #fff;
+}
+
+.badge-pre {
+    background: #ff8c00;
+    color: #fff;
+}
+
+.badge-fut {
+    background: #4a90e2;
+    color: #fff;
+}
+
+@keyframes pulse-live {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 170, 85, 0.7); }
+    50%      { box-shadow: 0 0 0 8px rgba(0, 170, 85, 0); }
+}
+
+.score-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 25px;
+    margin: 20px 0 25px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+}
+
+.score-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.score-abbr {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #e31837;
+    letter-spacing: 1px;
+}
+
+.score-num {
+    font-size: 3em;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.score-sep {
+    font-size: 2.5em;
+    color: #666;
+    font-weight: 300;
+}
+
+.sog-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 0;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    color: #aaa;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sog-label {
+    color: #e31837;
+    font-weight: 600;
+}
+
+.goals-section {
+    margin-top: 20px;
+}
+
+.goals-section h3 {
+    color: #e31837;
+    font-size: 1.1em;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(227, 24, 55, 0.3);
+}
+
+.no-goals {
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    padding: 20px 0;
+}
+
+.goal-item {
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid #e31837;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    font-size: 0.92em;
+    line-height: 1.5;
+}
+
+.goal-time {
+    color: #888;
+    font-size: 0.85em;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.goal-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.goal-scorer {
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.05em;
+}
+
+.goal-team {
+    color: #e31837;
+    font-weight: 600;
+}
+
+.goal-strength {
+    color: #aaa;
+    font-size: 0.8em;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.goal-score {
+    color: #ffb3b3;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.goal-assists {
+    color: #999;
+    font-size: 0.88em;
+    margin-top: 2px;
+}
+
+.goal-highlight {
+    display: inline-block;
+    margin-top: 6px;
+    color: #4a90e2;
+    text-decoration: none;
+    font-size: 0.85em;
+    border-bottom: 1px dotted #4a90e2;
+}
+
+.goal-highlight:hover {
+    color: #6aa9e8;
+    border-bottom-style: solid;
+}
+
+.detail-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    flex: 1;
+    min-width: 140px;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notify-btn {
+    background: #00aa55;
+    color: #fff;
+}
+
+.notify-btn:hover {
+    background: #00c962;
+    transform: translateY(-1px);
+}
+
+.refresh-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.watch-status {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(0, 170, 85, 0.1);
+    border-left: 3px solid #00aa55;
+    border-radius: 5px;
+    color: #88ffbb;
+    font-size: 0.85em;
+    min-height: 1em;
+}
+
+.watch-status:empty {
+    display: none;
+}
+
+
 @media (max-width: 768px) {
     h1 {
         font-size: 1.8em;

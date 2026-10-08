@@ -92,14 +92,28 @@ module.exports = async (req, res) => {
           const venueName = (g.venue && (g.venue.default || g.venue)) || 'TBD';
           return {
             gameDate: g.startTimeUTC,
+            gamePk: g.id,                               // NHL game ID for /api/game?id=...
             venue: { name: venueName },
             status: {
               abstractGameState: g.gameState || 'Preview',
               detailedState: g.gameScheduleState || (g.gameState || 'Scheduled'),
             },
+            gameState: g.gameState || null,             // 'FUT' | 'PRE' | 'LIVE' | 'CRIT' | 'OFF' | 'FINAL'
+            period: g.periodDescriptor || null,         // { number, periodType, maxRegulationPeriods }
+            clock: g.clock || null,                    // { timeRemaining, secondsRemaining } (live games only)
             teams: {
-              away: { team: { name: awayName, abbreviation: away.abbrev || '???' } },
-              home: { team: { name: homeName, abbreviation: home.abbrev || '???' } },
+              away: {
+                team: { name: awayName, abbreviation: away.abbrev || '???' },
+                score: (away.score !== undefined ? away.score : null),
+                sog:   (away.sog   !== undefined ? away.sog   : null),
+                logo:  away.logo   || null,
+              },
+              home: {
+                team: { name: homeName, abbreviation: home.abbrev || '???' },
+                score: (home.score !== undefined ? home.score : null),
+                sog:   (home.sog   !== undefined ? home.sog   : null),
+                logo:  home.logo   || null,
+              },
             },
           };
         });
