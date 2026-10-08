@@ -223,6 +223,10 @@ gameItem.addEventListener('click', (e) => {
 
         calendar.appendChild(dayCell);
     }
+
+    // Auto-scroll to today's cell after the calendar grid is rendered.
+    // No-op if today isn't in the currently displayed month.
+    scrollToToday();
 }
 
 // Show game details
@@ -297,4 +301,16 @@ function showError(message) {
 function hideError() {
     const error = document.getElementById('error');
     error.classList.add('hidden');
+}
+
+// Auto-scroll the calendar to today's cell.
+// No-op if today isn't in the current month (no .today cell exists).
+function scrollToToday() {
+    const todayCell = document.querySelector('.day-cell.today');
+    if (todayCell) {
+        // Wait one frame so layout settles before scrolling.
+        requestAnimationFrame(() => {
+            todayCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
 }

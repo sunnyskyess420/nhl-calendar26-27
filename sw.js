@@ -1,5 +1,8 @@
 // Service Worker for NHL Calendar PWA
-const CACHE_NAME = 'nhl-calendar-v4-vercel';
+// Cache version bumped (v4 -> v5) so the SW activate handler purges
+// stale v4 caches and users automatically get the fresh app.js bundle.
+// Bump this again on every future deploy that changes app.js/styles.css.
+const CACHE_NAME = 'nhl-calendar-v5-vercel';
 const urlsToCache = [
     './',
     './index.html',
