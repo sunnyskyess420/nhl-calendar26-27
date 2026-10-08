@@ -10,11 +10,15 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <button id="prevMonth" class="nav-button">&lt;</button>
-            <h1 id="monthTitle">October 2026</h1>
-            <button id="nextMonth" class="nav-button">&gt;</button>
-        </header>
+        <div class="sticky-top">
+            <header>
+                <button id="prevMonth" class="nav-button">&lt;</button>
+                <h1 id="monthTitle">October 2026</h1>
+                <button id="nextMonth" class="nav-button">&gt;</button>
+            </header>
+
+            <div id="dayHeaders" class="day-headers-row"></div>
+        </div>
 
         <div id="loading" class="loading">Loading NHL schedule...</div>
         <div id="error" class="error hidden"></div>

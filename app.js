@@ -137,13 +137,16 @@ function renderCalendar(date) {
     // Clear previous calendar
     calendar.innerHTML = '';
 
-    // Add day headers
+    // Render day headers into the sticky #dayHeaders row (separate from the
+    // calendar grid so they stay pinned to the top while scrolling).
+    const dayHeaders = document.getElementById('dayHeaders');
+    dayHeaders.innerHTML = '';
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     dayNames.forEach(day => {
         const header = document.createElement('div');
         header.className = 'day-header';
         header.textContent = day;
-        calendar.appendChild(header);
+        dayHeaders.appendChild(header);
     });
 
     // Get first day of month and total days
