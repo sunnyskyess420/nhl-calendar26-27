@@ -4,8 +4,27 @@
 
 let currentDate = new Date();
 let gamesData = [];
+// Define the allowed hockey season range (2026‑2027)
+// NHL regular season typically runs from early October to early June.
+const SEASON_START = new Date(2026, 9, 1); // Oct 1, 2026 (month is 0‑based)
+const SEASON_END   = new Date(2027, 5, 30); // Jun 30, 2027
 
-// Initialize the app
+// Helper: check if a date (first day of its month) is within the allowed season
+function isInSeason(date) {
+  const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+  return firstOfMonth >= SEASON_START && firstOfMonth <= SEASON_END;
+}
+
+// Enable/disable navigation buttons based on current month
+function updateNavButtons() {
+  const prevBtn = document.getElementById('prevMonth');
+  const nextBtn = document.getElementById('nextMonth');
+  // Compute month boundaries
+  const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+  prevBtn.disabled = prevMonth < SEASON_START;
+  nextBtn.disabled = nextMonth > SEASON_END;
+}
 document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     setupEventListeners();
@@ -50,6 +69,14 @@ function setupEventListeners() {
 
 // Load NHL schedule for a specific month via our Vercel API
 async function loadSchedule(date) {
+    // Season guard – only allow dates within Oct 2026 → Jun 2027
+    if (!isInSeason(date)) {
+        showError('No schedule available – the calendar only covers the 2026‑2027 NHL season.');
+        document.getElementById('calendar').innerHTML = '';
+        showLoading(false);
+        updateNavButtons();
+        return;
+    }
     showLoading(true);
     hideError();
 
@@ -58,7 +85,6 @@ async function loadSchedule(date) {
 
     try {
         const response = await fetch(`/api/schedule?year=${year}&month=${month}`);
-
         if (!response.ok) {
             let msg = `Server returned ${response.status}`;
             try {
@@ -67,7 +93,6 @@ async function loadSchedule(date) {
             } catch (_) {}
             throw new Error(msg);
         }
-
         const data = await response.json();
         gamesData = processScheduleData(data);
         renderCalendar(date);
@@ -80,6 +105,8 @@ async function loadSchedule(date) {
         );
     } finally {
         showLoading(false);
+        // Keep navigation arrows in sync
+        updateNavButtons();
     }
 }
 
@@ -161,7 +188,22 @@ function renderCalendar(date) {
             gamesData[dateKey].forEach(game => {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item';
-                gameItem.textContent = `${game.teams.away.team.abbreviation} @ ${game.teams.home.team.abbreviation}`;
+                // Create logo elements
+                const awayLogo = document.createElement('img');
+                awayLogo.src = game.teams.away.team.logo;
+                awayLogo.alt = game.teams.away.team.abbreviation;
+                awayLogo.className = 'team-logo';
+                const homeLogo = document.createElement('img');
+                homeLogo.src = game.teams.home.team.logo;
+                homeLogo.alt = game.teams.home.team.abbreviation;
+                homeLogo.className = 'team-logo';
+                // Text separator
+                const separator = document.createElement('span');
+                separator.textContent = ' @ ';
+                // Append logos and separator
+                gameItem.appendChild(awayLogo);
+                gameItem.appendChild(separator);
+                gameItem.appendChild(homeLogo);
                 gameItem.addEventListener('click', (e) => {
                     e.stopPropagation();
                     showGameDetails(game);
