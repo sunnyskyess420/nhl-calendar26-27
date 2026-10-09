@@ -4,6 +4,8 @@
 
 let currentDate = new Date();
 let gamesData = [];
+let currentView = 'month';             // 'month' or 'week'
+let currentWeekStart = null;            // Date (first day of displayed week) when in week view
 // Define the allowed hockey season range (2026‑2027)
 // NHL regular season typically runs from early October to early June.
 const SEASON_START = new Date(2026, 9, 1); // Oct 1, 2026 (month is 0‑based)
@@ -127,6 +129,10 @@ function setupEventListeners() {
         document.getElementById('gameDetails').classList.add('hidden');
     });
 
+    // View toggle tabs - switch between Month and Week views.
+    document.getElementById('viewMonth').addEventListener('click', () => setView('month'));
+    document.getElementById('viewWeek').addEventListener('click', () => setView('week'));
+
     // Re-render calendar when viewport crosses the narrow breakpoint so the
     // day-of-week labels switch between 'Sun' and 'S' as the user resizes
     // the browser or rotates their phone.
@@ -134,7 +140,8 @@ function setupEventListeners() {
     const handleMQChange = () => {
         // Only re-render if we already have data loaded.
         if (gamesData && Object.keys(gamesData).length > 0) {
-            renderCalendar(currentDate);
+            if (currentView === 'week') renderWeekView();
+            else                          renderCalendar(currentDate);
         }
     };
     if (narrowMQ.addEventListener) {
@@ -144,10 +151,12 @@ function setupEventListeners() {
         narrowMQ.addListener(handleMQChange);
     }
 
-    // Mobile swipe: swipe left = next month, swipe right = previous month.
+    // Mobile swipe: swipe left = next, swipe right = previous.
+    // Works on both the month grid and the week view.
     setupSwipeNavigation();
 
-    // Keyboard arrow keys: Left = previous month, Right = next month.
+    // Keyboard arrow keys: Left = previous, Right = next.
+    // In month view this navigates months; in week view it navigates weeks.
     // Ignore when focus is in an input/textarea, or when the modal is open
     // (so arrow keys don't fight with scrolling inside the popup).
     document.addEventListener('keydown', (e) => {
@@ -161,9 +170,44 @@ function setupEventListeners() {
     });
 }
 
-// Helper: navigate to previous or next month, respecting season bounds.
-// `direction` is -1 (previous) or +1 (next).
+// Switch between month and week views.
+function setView(view) {
+    if (view === currentView) return;
+    currentView = view;
+
+    // Update tab active state.
+    document.getElementById('viewMonth').classList.toggle('active', view === 'month');
+    document.getElementById('viewWeek').classList.toggle('active', view === 'week');
+
+    // Show/hide the appropriate container.
+    document.getElementById('calendar').classList.toggle('hidden', view !== 'month');
+    document.getElementById('weekView').classList.toggle('hidden', view !== 'week');
+    // The day-of-week row (Sun Mon Tue...) only makes sense in month view.
+    document.getElementById('dayHeaders').classList.toggle('hidden', view !== 'month');
+
+    if (view === 'week') {
+        // First time entering week view, or returning to it. Center on today.
+        if (!currentWeekStart) currentWeekStart = getTodayWeekStart();
+        loadWeekSchedule(currentWeekStart);
+    } else {
+        renderCalendar(currentDate);
+        updateNavButtons();
+    }
+}
+
+// Compute the start of the week centered on today (today minus 3 days).
+function getTodayWeekStart() {
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), t.getDate() - 3);
+}
+
+// Helper: navigate to previous or next period (month or week, depending on
+// current view), respecting season bounds. `direction` is -1 or +1.
 function navigateMonth(direction) {
+    if (currentView === 'week') {
+        navigateWeek(direction);
+        return;
+    }
     const prevBtn = document.getElementById('prevMonth');
     const nextBtn = document.getElementById('nextMonth');
     if (direction < 0 && prevBtn && prevBtn.disabled) return;
@@ -180,39 +224,67 @@ function navigateMonth(direction) {
     loadSchedule(currentDate);
 }
 
-// Setup touch swipe navigation on the calendar grid.
+// Navigate by one week (7 days) in the given direction.
+function navigateWeek(direction) {
+    if (!currentWeekStart) currentWeekStart = getTodayWeekStart();
+    const candidate = new Date(currentWeekStart);
+    candidate.setDate(candidate.getDate() + (direction * 7));
+    // Season guard: don't allow navigating to a week that starts before the
+    // season begins or ends after the season does. Be slightly lenient - if
+    // any day of the candidate week is within season, allow it.
+    const weekEnd = new Date(candidate);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const seasonStartDay = new Date(SEASON_START.getFullYear(), SEASON_START.getMonth(), SEASON_START.getDate());
+    const seasonEndDay = new Date(SEASON_END.getFullYear(), SEASON_END.getMonth(), SEASON_END.getDate());
+    if (weekEnd < seasonStartDay || candidate > seasonEndDay) return;
+
+    currentWeekStart = candidate;
+    const wv = document.getElementById('weekView');
+    if (wv) {
+        wv.classList.remove('slide-from-left', 'slide-from-right');
+        void wv.offsetWidth;
+        wv.classList.add(direction > 0 ? 'slide-from-right' : 'slide-from-left');
+    }
+    loadWeekSchedule(currentWeekStart);
+}
+
+// Setup touch swipe navigation. Listens on BOTH the calendar grid and the
+// week view so swipes work regardless of which view is active.
 // Threshold: 50px horizontal travel, and horizontal must exceed vertical
-// by 1.5x so vertical scrolls don't accidentally trigger month changes.
+// by 1.5x so vertical scrolls don't accidentally trigger navigation.
 function setupSwipeNavigation() {
-    const cal = document.getElementById('calendar');
-    if (!cal) return;
-    let startX = 0, startY = 0, startT = 0;
-    let tracking = false;
+    const targets = [
+        document.getElementById('calendar'),
+        document.getElementById('weekView')
+    ];
+    for (const cal of targets) {
+        if (!cal) continue;
+        let startX = 0, startY = 0, startT = 0;
+        let tracking = false;
 
-    cal.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) { tracking = false; return; }
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        startT = Date.now();
-        tracking = true;
-    }, { passive: true });
+        cal.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) { tracking = false; return; }
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            startT = Date.now();
+            tracking = true;
+        }, { passive: true });
 
-    cal.addEventListener('touchend', (e) => {
-        if (!tracking) return;
-        tracking = false;
-        const touch = e.changedTouches[0];
-        if (!touch) return;
-        const dx = touch.clientX - startX;
-        const dy = touch.clientY - startY;
-        const dt = Date.now() - startT;
-        const absX = Math.abs(dx);
-        const absY = Math.abs(dy);
-        // Require horizontal travel >= 50px, horizontal beats vertical by 1.5x,
-        // and gesture completed in < 800ms (so we don't catch slow scrolls).
-        if (absX < 50 || absX < absY * 1.5 || dt > 800) return;
-        if (dx < 0) navigateMonth(1);   // swipe left = next month
-        else        navigateMonth(-1);  // swipe right = previous month
-    }, { passive: true });
+        cal.addEventListener('touchend', (e) => {
+            if (!tracking) return;
+            tracking = false;
+            const touch = e.changedTouches[0];
+            if (!touch) return;
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            const dt = Date.now() - startT;
+            const absX = Math.abs(dx);
+            const absY = Math.abs(dy);
+            if (absX < 50 || absX < absY * 1.5 || dt > 800) return;
+            if (dx < 0) navigateMonth(1);
+            else        navigateMonth(-1);
+        }, { passive: true });
+    }
 }
 
 // Load NHL schedule for a specific month via our Vercel API
@@ -270,6 +342,260 @@ function processScheduleData(data) {
     }
 
     return games;
+}
+
+// Load NHL schedule for a 7-day window starting at `weekStart`.
+// If the week spans two months (e.g. Oct 30 - Nov 5), fetches both months
+// and merges the results into gamesData.
+async function loadWeekSchedule(weekStart) {
+    showLoading(true);
+    hideError();
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    // Build a list of unique {year, month} pairs covering the week.
+    const monthsToFetch = [];
+    const seen = new Set();
+    const addMonth = (d) => {
+        const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            monthsToFetch.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+        }
+    };
+    addMonth(weekStart);
+    addMonth(weekEnd);
+
+    try {
+        const responses = await Promise.all(
+            monthsToFetch.map(m =>
+                fetch(`/api/schedule?year=${m.year}&month=${m.month}`)
+                    .then(r => {
+                        if (!r.ok) throw new Error(`Server returned ${r.status}`);
+                        return r.json();
+                    })
+            )
+        );
+
+        // Merge all responses into gamesData.
+        gamesData = {};
+        for (const data of responses) {
+            const merged = processScheduleData(data);
+            for (const dateKey in merged) {
+                gamesData[dateKey] = merged[dateKey];
+            }
+        }
+
+        renderWeekView();
+    } catch (error) {
+        console.error('Error loading week schedule:', error);
+        showError(
+            'Could not load NHL schedule. ' +
+            'The site may be updating — try refreshing in a minute. ' +
+            'Details: ' + error.message
+        );
+    } finally {
+        showLoading(false);
+        updateWeekNavButtons();
+    }
+}
+
+// Render the 7-day week view as a vertical list of cards.
+// Each card shows the day name, date, and that day's games with the
+// same visual treatment as the month view (team colors, W/L, live pulse).
+function renderWeekView() {
+    const weekView = document.getElementById('weekView');
+    if (!weekView) return;
+    weekView.innerHTML = '';
+
+    const monthTitle = document.getElementById('monthTitle');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Update the header title to show the week's date range.
+    const dayNamesLong = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const startStr = `${monthShort[currentWeekStart.getMonth()]} ${currentWeekStart.getDate()}`;
+    const endStr = (currentWeekStart.getMonth() === weekEnd(currentWeekStart).getMonth() &&
+                    currentWeekStart.getFullYear() === weekEnd(currentWeekStart).getFullYear())
+        ? `${weekEnd(currentWeekStart).getDate()}`
+        : `${monthShort[weekEnd(currentWeekStart).getMonth()]} ${weekEnd(currentWeekStart).getDate()}`;
+    const yearStr = currentWeekStart.getFullYear() === weekEnd(currentWeekStart).getFullYear()
+        ? `${currentWeekStart.getFullYear()}`
+        : `${currentWeekStart.getFullYear()}-${weekEnd(currentWeekStart).getFullYear()}`;
+    monthTitle.textContent = `${startStr} - ${endStr}, ${yearStr}`;
+
+    // Render 7 day cards.
+    for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(currentWeekStart);
+        dayDate.setDate(dayDate.getDate() + i);
+        const dateKey = `${dayDate.getFullYear()}-${(dayDate.getMonth() + 1).toString().padStart(2, '0')}-${dayDate.getDate().toString().padStart(2, '0')}`;
+        const isToday = dayDate.getTime() === today.getTime();
+
+        const card = document.createElement('div');
+        card.className = 'week-day-card';
+        if (isToday) card.classList.add('is-today');
+
+        // Card header: day name + date number.
+        const cardHeader = document.createElement('div');
+        cardHeader.className = 'week-card-header';
+        const dayName = document.createElement('span');
+        dayName.className = 'week-day-name';
+        dayName.textContent = dayNamesLong[dayDate.getDay()];
+        const dateNum = document.createElement('span');
+        dateNum.className = 'week-date-num';
+        dateNum.textContent = `${monthShort[dayDate.getMonth()]} ${dayDate.getDate()}`;
+        if (isToday) {
+            const todayBadge = document.createElement('span');
+            todayBadge.className = 'today-badge';
+            todayBadge.textContent = 'TODAY';
+            dateNum.appendChild(todayBadge);
+        }
+        cardHeader.appendChild(dayName);
+        cardHeader.appendChild(dateNum);
+        card.appendChild(cardHeader);
+
+        // Card body: games for this day (or 'no games' message).
+        const cardBody = document.createElement('div');
+        cardBody.className = 'week-card-body';
+
+        const dayGames = gamesData[dateKey] || [];
+        if (dayGames.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'week-no-games';
+            empty.textContent = 'No games scheduled';
+            cardBody.appendChild(empty);
+        } else {
+            let dayHasLive = false;
+            dayGames.forEach(game => {
+                const gameItem = document.createElement('div');
+                gameItem.className = 'game-item week-game-item';
+
+                const state = game.gameState || game.status.abstractGameState || 'FUT';
+                if (state === 'LIVE' || state === 'CRIT') {
+                    gameItem.classList.add('game-live');
+                    dayHasLive = true;
+                } else if (state === 'PRE') {
+                    gameItem.classList.add('game-pre');
+                } else if (state === 'OFF' || state === 'FINAL') {
+                    gameItem.classList.add('game-final');
+                }
+
+                // Derive W/L for finished games.
+                let awayResult = null, homeResult = null;
+                if ((state === 'OFF' || state === 'FINAL') &&
+                    game.teams.away.score !== null && game.teams.away.score !== undefined &&
+                    game.teams.home.score !== null && game.teams.home.score !== undefined) {
+                    const aw = Number(game.teams.away.score);
+                    const hm = Number(game.teams.home.score);
+                    if (aw > hm)      { awayResult = 'W'; homeResult = 'L'; }
+                    else if (hm > aw)  { awayResult = 'L'; homeResult = 'W'; }
+                    else               { awayResult = 'T'; homeResult = 'T'; }
+                }
+
+                // Team-colored pill (same as month view).
+                if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
+                    const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
+                    const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
+                    if (awayColor) {
+                        const bg = hexToRgba(awayColor, 0.28);
+                        if (bg) gameItem.style.backgroundColor = bg;
+                    }
+                    if (homeColor) gameItem.style.setProperty('--home-color', homeColor);
+                }
+
+                // Logos + abbreviations + score + badges.
+                const awayLogo = document.createElement('img');
+                awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
+                awayLogo.alt = game.teams.away.team.abbreviation;
+                awayLogo.className = 'team-logo';
+                const awayAbbr = document.createElement('span');
+                awayAbbr.textContent = game.teams.away.team.abbreviation;
+                awayAbbr.className = 'team-abbr';
+                if (awayResult) {
+                    const badge = document.createElement('span');
+                    badge.className = `result-badge result-${awayResult.toLowerCase()}`;
+                    badge.textContent = awayResult;
+                    awayAbbr.appendChild(badge);
+                }
+
+                const homeLogo = document.createElement('img');
+                homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
+                homeLogo.alt = game.teams.home.team.abbreviation;
+                homeLogo.className = 'team-logo';
+                const homeAbbr = document.createElement('span');
+                homeAbbr.textContent = game.teams.home.team.abbreviation;
+                homeAbbr.className = 'team-abbr';
+                if (homeResult) {
+                    const badge = document.createElement('span');
+                    badge.className = `result-badge result-${homeResult.toLowerCase()}`;
+                    badge.textContent = homeResult;
+                    homeAbbr.appendChild(badge);
+                }
+
+                // Score (live or final games only).
+                const scoreSpan = document.createElement('span');
+                scoreSpan.className = 'week-game-score';
+                if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
+                    scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
+                } else {
+                    // Show game time for scheduled games.
+                    const gd = new Date(game.gameDate);
+                    const tm = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    scoreSpan.textContent = tm;
+                }
+
+                gameItem.appendChild(awayLogo);
+                gameItem.appendChild(awayAbbr);
+                const sep = document.createElement('span');
+                sep.textContent = ' @ ';
+                gameItem.appendChild(sep);
+                gameItem.appendChild(homeLogo);
+                gameItem.appendChild(homeAbbr);
+                gameItem.appendChild(scoreSpan);
+
+                gameItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showGameDetails(game);
+                });
+
+                cardBody.appendChild(gameItem);
+            });
+            if (dayHasLive) card.classList.add('has-live');
+        }
+        card.appendChild(cardBody);
+        weekView.appendChild(card);
+    }
+
+    // Auto-scroll the page so today's card is in view (not the sticky header).
+    const todayCard = weekView.querySelector('.week-day-card.is-today');
+    if (todayCard) {
+        requestAnimationFrame(() => {
+            todayCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
+}
+
+// Helper: compute the last day (Date) of a 7-day week starting at `weekStart`.
+function weekEnd(weekStart) {
+    const e = new Date(weekStart);
+    e.setDate(e.getDate() + 6);
+    return e;
+}
+
+// Update nav button disabled state based on whether the week can go
+// earlier/later within the season.
+function updateWeekNavButtons() {
+    const prevBtn = document.getElementById('prevMonth');
+    const nextBtn = document.getElementById('nextMonth');
+    if (!currentWeekStart || !prevBtn || !nextBtn) return;
+    const weekEndDate = weekEnd(currentWeekStart);
+    const seasonStartDay = new Date(SEASON_START.getFullYear(), SEASON_START.getMonth(), SEASON_START.getDate());
+    const seasonEndDay = new Date(SEASON_END.getFullYear(), SEASON_END.getMonth(), SEASON_END.getDate());
+    prevBtn.disabled = (weekEndDate <= seasonStartDay);
+    nextBtn.disabled = (currentWeekStart >= seasonEndDay);
 }
 
 // Render the calendar

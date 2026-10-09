@@ -150,6 +150,155 @@ h1 {
     font-size: 1.1em;
 }
 
+/* ============================================================================
+   View toggle tabs (Month / Week)
+   ============================================================================ */
+
+.view-toggle {
+    display: flex;
+    gap: 0;
+    margin: 8px 0;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    padding: 3px;
+    /* Hide the toggle row when day headers are hidden (week view doesn't need it,
+       but we keep it visible since the tabs ARE the toggle). Actually we always
+       show it - the tabs are how you switch back. */
+}
+
+.view-tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: transparent;
+    color: #aaa;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.view-tab:hover:not(.active) {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.view-tab.active {
+    background: #e31837;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(227, 24, 55, 0.4);
+}
+
+/* ============================================================================
+   Week view - vertical list of day cards
+   ============================================================================ */
+
+.week-view {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.week-view.hidden {
+    display: none;
+}
+
+.week-day-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+
+/* Today's card gets a subtle highlight. */
+.week-day-card.is-today {
+    border-color: #00ff66;
+    box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+}
+
+/* Cards with a live game get the same pulsing border as in month view. */
+.week-day-card.has-live {
+    border-color: #00ff66;
+    animation: pulse-live-border 2s ease-in-out infinite;
+}
+
+.week-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(227, 24, 55, 0.15);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.week-day-name {
+    font-size: 1em;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+
+.week-date-num {
+    font-size: 0.9em;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.today-badge {
+    background: #00ff66;
+    color: #1a1a2e;
+    font-size: 0.7em;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+
+.week-card-body {
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.week-no-games {
+    color: #666;
+    font-style: italic;
+    padding: 8px 4px;
+    font-size: 0.9em;
+}
+
+/* Week-view game items get horizontal layout (vs stacked in month view):
+   away logo+abbr | @ | home logo+abbr | score
+   Score is shown to the right, time shown for scheduled games. */
+.game-item.week-game-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    font-size: 0.95em;
+    white-space: normal;
+    line-height: 1.3;
+}
+
+.week-game-score {
+    margin-left: auto;
+    font-weight: 700;
+    color: #fff;
+    font-size: 0.95em;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
 .day-cell {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
@@ -691,6 +840,41 @@ h1 {
     .team-logo {
         height: 1.1em;
         margin: 0 1px;
+    }
+
+    /* ===== Week view on mobile - cards take full width ===== */
+    .week-view {
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .week-card-header {
+        padding: 8px 10px;
+    }
+
+    .week-day-name {
+        font-size: 0.9em;
+    }
+
+    .week-date-num {
+        font-size: 0.8em;
+    }
+
+    .today-badge {
+        font-size: 0.65em;
+        padding: 1px 4px;
+    }
+
+    /* Week-view game items: keep horizontal layout but make it compact */
+    .game-item.week-game-item {
+        font-size: 0.85em;
+        padding: 6px 8px;
+        gap: 3px;
+    }
+
+    .week-game-score {
+        font-size: 0.85em;
+        padding: 1px 6px;
     }
 
     .team-abbr {
