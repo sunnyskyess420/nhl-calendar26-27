@@ -65,6 +65,23 @@ function setupEventListeners() {
     document.getElementById('closeDetails').addEventListener('click', () => {
         document.getElementById('gameDetails').classList.add('hidden');
     });
+
+    // Re-render calendar when viewport crosses the narrow breakpoint so the
+    // day-of-week labels switch between 'Sun' and 'S' as the user resizes
+    // the browser or rotates their phone.
+    const narrowMQ = window.matchMedia('(max-width: 600px)');
+    const handleMQChange = () => {
+        // Only re-render if we already have data loaded.
+        if (gamesData && Object.keys(gamesData).length > 0) {
+            renderCalendar(currentDate);
+        }
+    };
+    if (narrowMQ.addEventListener) {
+        narrowMQ.addEventListener('change', handleMQChange);
+    } else if (narrowMQ.addListener) {
+        // Older Safari fallback.
+        narrowMQ.addListener(handleMQChange);
+    }
 }
 
 // Load NHL schedule for a specific month via our Vercel API
@@ -139,13 +156,17 @@ function renderCalendar(date) {
 
     // Render day headers into the sticky #dayHeaders row (separate from the
     // calendar grid so they stay pinned to the top while scrolling).
+    // Use single letters on narrow screens (S M T W T F S) to save space.
     const dayHeaders = document.getElementById('dayHeaders');
     dayHeaders.innerHTML = '';
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayNames.forEach(day => {
+    const isNarrow = window.matchMedia('(max-width: 600px)').matches;
+    const dayNames = isNarrow
+        ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+        : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayHeaders.forEach(label => {
         const header = document.createElement('div');
         header.className = 'day-header';
-        header.textContent = day;
+        header.textContent = label;
         dayHeaders.appendChild(header);
     });
 

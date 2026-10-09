@@ -504,27 +504,255 @@ h1 {
 
 
 @media (max-width: 768px) {
+    /* Tighter body padding so the calendar gets more horizontal space */
+    body {
+        padding: 10px;
+    }
+
+    /* Belt-and-suspenders against any element causing horizontal scroll */
+    html, body {
+        overflow-x: hidden;
+    }
+
+    /* Compact header: smaller nav buttons, smaller month title */
     h1 {
+        font-size: 1.3em;
+    }
+
+    header {
+        padding: 12px 10px;
+        margin-bottom: 0;
+    }
+
+    .nav-button {
+        width: 40px;
+        height: 40px;
+        font-size: 1em;
+        padding: 0;
+    }
+
+    /* Sticky header: remove the -10px side margins that caused horizontal
+       scroll on narrow screens. Still has the shadow, just contained. */
+    .sticky-top {
+        margin-left: 0;
+        margin-right: 0;
+        margin-bottom: 10px;
+        padding: 0 5px;
+    }
+
+    /* Day-of-week row: smaller cells + smaller font */
+    .day-headers-row {
+        gap: 3px;
+        padding: 5px 0;
+    }
+
+    .day-header {
+        padding: 6px 4px;
+        font-size: 0.85em;
+    }
+
+    /* Calendar grid: tighter gaps, smaller cells */
+    .calendar-grid {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+        margin-bottom: 10px;
+    }
+
+    .day-cell {
+        min-height: 55px;
+        padding: 3px;
+    }
+
+    .day-number {
+        font-size: 0.95em;
+        margin-bottom: 2px;
+    }
+
+    /* Game items: smaller logos, tighter padding, allow wrap */
+    .game-item {
+        font-size: 0.65em;
+        padding: 3px 4px;
+        margin: 2px 0;
+        /* Allow content to wrap on 2 lines instead of clipping */
+        white-space: normal;
+        line-height: 1.1;
+        word-break: keep-all;
+    }
+
+    .team-logo {
+        height: 1.1em;
+        margin: 0 1px;
+    }
+
+    .team-abbr {
+        font-size: 0.85em;
+        margin: 0 1px;
+    }
+
+    /* ===== Modal (game details popup) ===== */
+    .game-details {
+        width: 95%;
+        padding: 15px;
+        border-radius: 12px;
+        max-height: 88vh;
+    }
+
+    .close-button {
+        width: 32px;
+        height: 32px;
+        top: 10px;
+        right: 10px;
+        font-size: 1.2em;
+    }
+
+    #detailsTitle {
+        font-size: 1.1em;
+        margin-bottom: 12px;
+        padding-right: 30px;
+    }
+
+    /* Score display: smaller numbers, tighter gaps */
+    .score-display {
+        gap: 12px;
+        margin: 12px 0 15px;
+        padding: 12px;
+    }
+
+    .score-abbr {
+        font-size: 1em;
+    }
+
+    .score-num {
+        font-size: 2.2em;
+    }
+
+    .score-sep {
         font-size: 1.8em;
+    }
+
+    /* Status badge slightly smaller */
+    .status-badge {
+        font-size: 0.8em;
+        padding: 4px 10px;
+        margin-bottom: 12px;
+    }
+
+    /* Detail rows tighter */
+    .detail-row {
+        padding: 6px 0;
+        font-size: 0.9em;
+    }
+
+    /* Goals list */
+    .goal-item {
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 0.85em;
+    }
+
+    .goal-scorer {
+        font-size: 0.95em;
+    }
+
+    /* Action buttons full-width stacked */
+    .detail-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .action-btn {
+        width: 100%;
+        min-width: 0;
+        padding: 10px 14px;
+        font-size: 0.9em;
+    }
+
+    /* Loading and error smaller */
+    .loading {
+        font-size: 1.1em;
+        padding: 25px;
+    }
+
+    .error {
+        padding: 12px;
+        font-size: 0.9em;
+    }
+}
+
+/* Extra-small phones (≤ 380px) - even more compact */
+@media (max-width: 380px) {
+    body {
+        padding: 6px;
+    }
+
+    h1 {
+        font-size: 1.1em;
+    }
+
+    .nav-button {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9em;
+    }
+
+    .day-cell {
+        min-height: 48px;
+        padding: 2px;
+    }
+
+    .day-number {
+        font-size: 0.85em;
+    }
+
+    .game-item {
+        font-size: 0.6em;
+        padding: 2px 3px;
+    }
+
+    .team-logo {
+        height: 0.95em;
+    }
+
+    .score-num {
+        font-size: 1.8em;
+    }
+
+    .game-details {
+        padding: 12px;
+        width: 98%;
+    }
+}
+
+/* Tablet (769px - 1023px) - moderate shrink */
+@media (min-width: 769px) and (max-width: 1023px) {
+    body {
+        padding: 15px;
+    }
+
+    h1 {
+        font-size: 2em;
     }
 
     .nav-button {
         width: 50px;
         height: 50px;
-        font-size: 1.2em;
+        font-size: 1.3em;
     }
 
     .calendar-grid {
-        grid-template-columns: repeat(7, 1fr);
-        gap: 5px;
+        gap: 6px;
     }
 
     .day-cell {
-        min-height: 80px;
-        padding: 5px;
+        min-height: 75px;
+        padding: 6px;
     }
 
     .game-item {
-        font-size: 0.7em;
+        font-size: 0.75em;
+    }
+
+    .team-logo {
+        height: 1.3em;
     }
 }
