@@ -95,8 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     loadSchedule(currentDate);
     // Kick off the today-strip fetch + start the auto-refresh timer.
+    // 30s interval so live scores feel near-real-time without hammering
+    // the NHL API (only LIVE/PRE games are refetched in detail; the
+    // schedule endpoint is cached per-month).
     refreshTodayStrip();
-    setInterval(refreshTodayStrip, 60000);  // refresh every 60s
+    setInterval(refreshTodayStrip, 30000);  // refresh every 30s
 });
 
 // Register service worker for PWA
@@ -392,7 +395,8 @@ let _todayStripLoadedMonth = null;  // 'YYYY-M' string
 let _todayStripGames = [];          // array of game objects for today
 
 // Refresh the today-strip: fetches today's month if not already loaded,
-// then renders the strip. Called every 60s by setInterval.
+// then fetches live detail for any in-progress or pre-game games so the
+// scores update in real time. Called every 60s by setInterval.
 async function refreshTodayStrip() {
     const today = new Date();
     const monthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
@@ -421,7 +425,70 @@ async function refreshTodayStrip() {
         }
     }
 
+    // For LIVE and PRE games today, fetch fresh detail so scores update in
+    // real time. We do this every refresh cycle (60s) for any game that
+    // isn't FINAL yet - once a game goes FINAL, the schedule API already
+    // has the final score, so we skip refetching.
+    await refreshLiveTodayGames();
+
     renderTodayStrip();
+}
+
+// Fetch fresh detail for each of today's games that is LIVE or PRE,
+// and merge the updated scores/gameState back into gamesData[todayKey].
+// This makes the today-strip scores update in real time every 60s.
+async function refreshLiveTodayGames() {
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    const todaysGames = (gamesData && gamesData[todayKey]) || [];
+    if (todaysGames.length === 0) return;
+
+    // Find games that are in-progress or about to start - these are the
+    // ones whose scores/state we want to refresh.
+    const toRefresh = todaysGames.filter(g => {
+        const state = g.gameState || g.status.abstractGameState || 'FUT';
+        return state === 'LIVE' || state === 'CRIT' || state === 'PRE';
+    });
+    if (toRefresh.length === 0) return;
+
+    // Fetch detail for each in parallel.
+    const detailPromises = toRefresh.map(async (g) => {
+        if (!g.gamePk) return null;
+        try {
+            const r = await fetch(`/api/game?id=${g.gamePk}`);
+            if (!r.ok) return null;
+            return await r.json();
+        } catch (err) {
+            console.warn(`Live fetch failed for game ${g.gamePk}:`, err.message);
+            return null;
+        }
+    });
+    const details = await Promise.all(detailPromises);
+
+    // Merge fresh data back into gamesData. We mutate the existing game
+    // object in-place so any other code holding a reference (e.g. the
+    // click handler that opens the modal) sees the updated scores.
+    details.forEach(detail => {
+        if (!detail) return;
+        const idx = todaysGames.findIndex(g => String(g.gamePk) === String(detail.gamePk));
+        if (idx === -1) return;
+        const g = todaysGames[idx];
+        // Update scores + state from the detail.
+        if (detail.awayTeam && detail.awayTeam.score !== null && detail.awayTeam.score !== undefined) {
+            g.teams.away.score = detail.awayTeam.score;
+            g.teams.away.sog = detail.awayTeam.sog;
+        }
+        if (detail.homeTeam && detail.homeTeam.score !== null && detail.homeTeam.score !== undefined) {
+            g.teams.home.score = detail.homeTeam.score;
+            g.teams.home.sog = detail.homeTeam.sog;
+        }
+        if (detail.gameState) {
+            g.gameState = detail.gameState;
+            if (g.status) g.status.abstractGameState = detail.gameState;
+        }
+        if (detail.periodDescriptor) g.period = detail.periodDescriptor;
+        if (detail.clock) g.clock = detail.clock;
+    });
 }
 
 // Render the today-strip from gamesData + _todayStripGames.
