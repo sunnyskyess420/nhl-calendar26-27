@@ -356,9 +356,18 @@ h1 {
     font-size: 0.85em;
     cursor: pointer;
     transition: all 0.2s ease;
+    /* Allow pills to wrap to multiple lines so the full content (away logo +
+       abbr + W/L badge + @ + home logo + abbr + W/L badge) is always visible.
+       Previously 'white-space: nowrap' + 'text-overflow: ellipsis' truncated
+       pills to "PHI W @ ..." on busy days, hiding the home team's identity.
+       With wrapping, the pill might be 2 lines tall on narrow cells but all
+       content is shown. */
+    white-space: normal;
+    line-height: 1.3;
+    word-break: keep-all;
+    /* Keep the pill visually contained - logos shouldn't overflow the rounded
+       corners. Overflow can still happen vertically if needed. */
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .team-logo {
@@ -371,6 +380,13 @@ h1 {
     font-size: 0.9em;
     margin: 0 0.2em;
     color: #fff;
+    /* Keep each team's logo + abbreviation + W/L badge grouped together so
+       a wrap happens BETWEEN teams (away | @ | home) rather than within one
+       team's identity (e.g. logo | abbr | badge). Without this, "PHI" and
+       its "W" badge could end up on different lines. */
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .game-item:hover {
