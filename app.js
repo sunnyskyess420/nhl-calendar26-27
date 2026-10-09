@@ -135,6 +135,12 @@ function setupEventListeners() {
         closeGameDetails();
     });
 
+    // 'Jump to today' floating button - takes the user back to today's
+    // date from anywhere in the calendar.
+    document.getElementById('todayJump').addEventListener('click', () => {
+        jumpToToday();
+    });
+
     // Click outside the modal (on the modal's backdrop area) also closes it.
     document.getElementById('gameDetails').addEventListener('click', (e) => {
         // Only close if the click was on the modal container itself, not its children.
@@ -228,6 +234,7 @@ function setView(view) {
     } else {
         renderCalendar(currentDate);
         updateNavButtons();
+        updateTodayJumpVisibility();
     }
 }
 
@@ -235,6 +242,52 @@ function setView(view) {
 function getTodayWeekStart() {
     const t = new Date();
     return new Date(t.getFullYear(), t.getMonth(), t.getDate() - 3);
+}
+
+// Jump to today's date from anywhere in the calendar.
+// - In month view: sets currentDate to today, loads that month, scrolls to today's cell.
+// - In week view: sets currentWeekStart to today-centered week, loads it, scrolls to today's card.
+// Also closes the modal if it's open (so the user can see the calendar).
+function jumpToToday() {
+    // Close the modal if open so we can see the calendar.
+    if (!document.getElementById('gameDetails').classList.contains('hidden')) {
+        closeGameDetails();
+    }
+
+    if (currentView === 'week') {
+        currentWeekStart = getTodayWeekStart();
+        loadWeekSchedule(currentWeekStart);
+    } else {
+        currentDate = new Date();
+        loadSchedule(currentDate);
+    }
+}
+
+// Show or hide the 'Jump to Today' button based on whether the user is
+// currently viewing today (in month or week view). Hide the button when
+// they're already on today's month/week - no point cluttering the screen.
+function updateTodayJumpVisibility() {
+    const btn = document.getElementById('todayJump');
+    if (!btn) return;
+    const today = new Date();
+    let viewingToday = false;
+    if (currentView === 'week') {
+        if (currentWeekStart) {
+            // Today is within the displayed week if it's within 7 days of currentWeekStart.
+            const diffMs = today.getTime() - currentWeekStart.getTime();
+            const diffDays = diffMs / (1000 * 60 * 60 * 24);
+            viewingToday = (diffDays >= 0 && diffDays < 7);
+        }
+    } else {
+        // Month view: today is within the displayed month.
+        viewingToday = (currentDate.getFullYear() === today.getFullYear() &&
+                        currentDate.getMonth() === today.getMonth());
+    }
+    if (viewingToday) {
+        btn.classList.add('hidden');
+    } else {
+        btn.classList.remove('hidden');
+    }
 }
 
 // Helper: navigate to previous or next period (month or week, depending on
@@ -356,6 +409,7 @@ async function loadSchedule(date) {
         // can use gamesData directly. Otherwise refreshTodayStrip will fetch
         // today's month on its own (it tracks which month it has loaded).
         renderTodayStrip();
+        updateTodayJumpVisibility();
     } catch (error) {
         console.error('Error loading schedule:', error);
         showError(
@@ -663,6 +717,7 @@ async function loadWeekSchedule(weekStart) {
         }
 
         renderWeekView();
+        updateTodayJumpVisibility();
     } catch (error) {
         console.error('Error loading week schedule:', error);
         showError(
