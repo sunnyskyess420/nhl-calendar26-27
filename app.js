@@ -9,6 +9,69 @@ let gamesData = [];
 const SEASON_START = new Date(2026, 9, 1); // Oct 1, 2026 (month is 0‑based)
 const SEASON_END   = new Date(2027, 5, 30); // Jun 30, 2027
 
+// NHL team brand colors keyed by 3-letter abbreviation.
+// Used to color the calendar game pills: pill background = away team color,
+// left border accent = home team color.
+//
+// For teams whose primary color is black (BOS, PIT, ANA, LAK, NJD), we use
+// the most recognizable secondary color (gold, orange, silver, etc.) so the
+// pill backgrounds remain visible on the dark site background.
+const TEAM_COLORS = {
+    // Atlantic Division
+    BOS: '#FFB81C', // gold (black is primary)
+    BUF: '#0048C0', // royal blue
+    DET: '#CE1126', // red
+    FLA: '#C8102E', // red
+    MTL: '#AF1E2D', // red
+    OTT: '#C52032', // red
+    TBL: '#002868', // blue
+    TOR: '#00205B', // blue
+    // Metropolitan Division
+    CAR: '#CC0000', // red
+    CBJ: '#002654', // navy blue
+    NJD: '#CE1126', // red
+    NYI: '#00539B', // blue
+    NYR: '#0038A8', // blue
+    PHI: '#F74902', // orange
+    PIT: '#FCB514', // gold (black is primary)
+    WSH: '#C8102E', // red
+    // Central Division
+    ARI: '#8C2633', // brick red
+    CHI: '#CF0A2C', // red
+    COL: '#6F263D', // burgundy
+    DAL: '#006847', // victory green
+    MIN: '#154734', // forest green
+    NSH: '#FFB81C', // gold
+    STL: '#002F87', // blue
+    UTA: '#71AFE5', // salt blue (new expansion team)
+    // Pacific Division
+    ANA: '#F47A38', // orange (black is primary)
+    CGY: '#C8102E', // red
+    EDM: '#FF4C00', // orange
+    LAK: '#A2AAAD', // silver (black is primary)
+    SJS: '#006D75', // teal
+    SEA: '#99D9D9', // ice blue
+    VAN: '#00205B', // blue
+    VGK: '#B4975A', // gold
+};
+
+// Convert a hex color (#RRGGBB or #RGB) to an rgba() string with the given
+// alpha. Returns null if the input is invalid (caller can fall back).
+function hexToRgba(hex, alpha) {
+    if (!hex || typeof hex !== 'string') return null;
+    let h = hex.replace('#', '').trim();
+    if (h.length === 3) {
+        // Expand shorthand: #abc -> #aabbcc
+        h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    if (h.length !== 6) return null;
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // Helper: check if a date (first day of its month) is within the allowed season
 function isInSeason(date) {
   const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -291,6 +354,32 @@ function renderCalendar(date) {
                     gameItem.classList.add('game-pre');
                 } else if (state === 'OFF' || state === 'FINAL') {
                     gameItem.classList.add('game-final');
+                }
+
+                // Apply team brand colors to the pill, but ONLY for scheduled
+                // and final games. LIVE games keep the green 'happening now'
+                // background (more urgent than team identity), and PRE games
+                // keep the orange 'about to start' background.
+                if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
+                    const awayAbbrForColor = game.teams.away.team.abbreviation;
+                    const homeAbbrForColor = game.teams.home.team.abbreviation;
+                    const awayColor = TEAM_COLORS[awayAbbrForColor];
+                    const homeColor = TEAM_COLORS[homeAbbrForColor];
+
+                    // Pill background = away team color at 28% opacity.
+                    // Subtle enough to keep text readable, saturated enough
+                    // to identify the team at a glance.
+                    if (awayColor) {
+                        const bg = hexToRgba(awayColor, 0.28);
+                        if (bg) gameItem.style.backgroundColor = bg;
+                    }
+
+                    // Left border = home team color, full saturation.
+                    // Creates a 'split' visual: home stripe on the left,
+                    // away color fills the rest. Both teams visible.
+                    if (homeColor) {
+                        gameItem.style.setProperty('--home-color', homeColor);
+                    }
                 }
 
                 // For finished games, derive W/L from scores so we can mark

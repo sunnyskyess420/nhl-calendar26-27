@@ -183,7 +183,13 @@ h1 {
 }
 
 .game-item {
+    /* Default NHL red as fallback. Overridden inline by team colors for
+       scheduled and final games via gameItem.style.backgroundColor. */
     background: rgba(227, 24, 55, 0.6);
+    /* Left border = home team's brand color, set via --home-color CSS var.
+       Creates a 'split' visual: home color stripe on the left, away color
+       fills the rest of the pill. Fallback to NHL red if no team color. */
+    border-left: 3px solid var(--home-color, #e31837);
     padding: 5px 8px;
     margin: 4px 0;
     border-radius: 5px;
@@ -674,6 +680,8 @@ h1 {
         font-size: 0.65em;
         padding: 3px 4px;
         margin: 2px 0;
+        /* Thinner left border on mobile so it doesn't dominate the pill */
+        border-left-width: 2px;
         /* Allow content to wrap on 2 lines instead of clipping */
         white-space: normal;
         line-height: 1.1;
