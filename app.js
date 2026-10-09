@@ -189,9 +189,14 @@ function setupEventListeners() {
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         resizeRaf = requestAnimationFrame(() => {
             fitPillsToCells();
+            updateTodayJumpVisibility();  // viewport changed, re-check button
             resizeRaf = 0;
         });
     });
+
+    // Re-check the 'Jump to Today' button visibility on scroll. The button
+    // should appear as soon as today's cell scrolls out of view.
+    window.addEventListener('scroll', handleScrollForTodayButton, { passive: true });
 
     // Mobile swipe: swipe left = next, swipe right = previous.
     // Works on both the month grid and the week view.
@@ -263,31 +268,59 @@ function jumpToToday() {
     }
 }
 
-// Show or hide the 'Jump to Today' button based on whether the user is
-// currently viewing today (in month or week view). Hide the button when
-// they're already on today's month/week - no point cluttering the screen.
+// Show or hide the 'Jump to Today' button based on whether today's cell
+// is currently visible in the viewport. The button appears as soon as
+// today scrolls out of view - whether because the user navigated to a
+// different month, or because they scrolled down within today's month
+// past today's cell.
 function updateTodayJumpVisibility() {
     const btn = document.getElementById('todayJump');
     if (!btn) return;
-    const today = new Date();
-    let viewingToday = false;
+
+    // Find today's element in the current view.
+    let todayEl = null;
     if (currentView === 'week') {
-        if (currentWeekStart) {
-            // Today is within the displayed week if it's within 7 days of currentWeekStart.
-            const diffMs = today.getTime() - currentWeekStart.getTime();
-            const diffDays = diffMs / (1000 * 60 * 60 * 24);
-            viewingToday = (diffDays >= 0 && diffDays < 7);
-        }
+        todayEl = document.querySelector('.week-day-card.is-today');
     } else {
-        // Month view: today is within the displayed month.
-        viewingToday = (currentDate.getFullYear() === today.getFullYear() &&
-                        currentDate.getMonth() === today.getMonth());
+        todayEl = document.querySelector('.day-cell.today');
     }
-    if (viewingToday) {
+
+    // If there's no today element (e.g. viewing a different month with no
+    // today cell), show the button so the user can jump back.
+    if (!todayEl) {
+        btn.classList.remove('hidden');
+        return;
+    }
+
+    // Check if today's element is visible in the viewport.
+    // We use a slightly generous threshold: consider it "visible" if any
+    // part of it is within the viewport (with a small margin to account
+    // for the sticky header overlapping the top).
+    const rect = todayEl.getBoundingClientRect();
+    const viewportTop = 0;
+    const stickyHeaderHeight = 160;  // approx height of sticky header
+    const viewportBottom = window.innerHeight || document.documentElement.clientHeight;
+    const isVisible = (
+        rect.bottom > viewportTop + stickyHeaderHeight &&  // not scrolled past top
+        rect.top < viewportBottom - 50  // not scrolled past bottom (with margin)
+    );
+
+    if (isVisible) {
         btn.classList.add('hidden');
     } else {
         btn.classList.remove('hidden');
     }
+}
+
+// Debounced scroll handler - re-checks today button visibility on scroll.
+// Uses requestAnimationFrame to avoid running too often during fast scrolls.
+let _scrollRaf = 0;
+function handleScrollForTodayButton() {
+    if (_scrollRaf) return;  // already scheduled
+    _scrollRaf = requestAnimationFrame(() => {
+        updateTodayJumpVisibility();
+        _scrollRaf = 0;
+    });
 }
 
 // Helper: navigate to previous or next period (month or week, depending on
