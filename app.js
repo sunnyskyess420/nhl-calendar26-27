@@ -53,13 +53,11 @@ async function registerServiceWorker() {
 // Setup event listeners
 function setupEventListeners() {
     document.getElementById('prevMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        loadSchedule(currentDate);
+        navigateMonth(-1);
     });
 
     document.getElementById('nextMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        loadSchedule(currentDate);
+        navigateMonth(1);
     });
 
     document.getElementById('closeDetails').addEventListener('click', () => {
@@ -82,6 +80,76 @@ function setupEventListeners() {
         // Older Safari fallback.
         narrowMQ.addListener(handleMQChange);
     }
+
+    // Mobile swipe: swipe left = next month, swipe right = previous month.
+    setupSwipeNavigation();
+
+    // Keyboard arrow keys: Left = previous month, Right = next month.
+    // Ignore when focus is in an input/textarea, or when the modal is open
+    // (so arrow keys don't fight with scrolling inside the popup).
+    document.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) return;
+        const modalOpen = !document.getElementById('gameDetails').classList.contains('hidden');
+        if (modalOpen) return;
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); navigateMonth(-1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); navigateMonth(1); }
+    });
+}
+
+// Helper: navigate to previous or next month, respecting season bounds.
+// `direction` is -1 (previous) or +1 (next).
+function navigateMonth(direction) {
+    const prevBtn = document.getElementById('prevMonth');
+    const nextBtn = document.getElementById('nextMonth');
+    if (direction < 0 && prevBtn && prevBtn.disabled) return;
+    if (direction > 0 && nextBtn && nextBtn.disabled) return;
+    currentDate.setMonth(currentDate.getMonth() + direction);
+    // Add a brief slide animation class for visual feedback.
+    const cal = document.getElementById('calendar');
+    if (cal) {
+        cal.classList.remove('slide-from-left', 'slide-from-right');
+        // Force reflow so the animation restarts even if the class was just removed.
+        void cal.offsetWidth;
+        cal.classList.add(direction > 0 ? 'slide-from-right' : 'slide-from-left');
+    }
+    loadSchedule(currentDate);
+}
+
+// Setup touch swipe navigation on the calendar grid.
+// Threshold: 50px horizontal travel, and horizontal must exceed vertical
+// by 1.5x so vertical scrolls don't accidentally trigger month changes.
+function setupSwipeNavigation() {
+    const cal = document.getElementById('calendar');
+    if (!cal) return;
+    let startX = 0, startY = 0, startT = 0;
+    let tracking = false;
+
+    cal.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) { tracking = false; return; }
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        startT = Date.now();
+        tracking = true;
+    }, { passive: true });
+
+    cal.addEventListener('touchend', (e) => {
+        if (!tracking) return;
+        tracking = false;
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        const dt = Date.now() - startT;
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+        // Require horizontal travel >= 50px, horizontal beats vertical by 1.5x,
+        // and gesture completed in < 800ms (so we don't catch slow scrolls).
+        if (absX < 50 || absX < absY * 1.5 || dt > 800) return;
+        if (dx < 0) navigateMonth(1);   // swipe left = next month
+        else        navigateMonth(-1);  // swipe right = previous month
+    }, { passive: true });
 }
 
 // Load NHL schedule for a specific month via our Vercel API
