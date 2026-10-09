@@ -169,6 +169,18 @@ function setupEventListeners() {
         narrowMQ.addListener(handleMQChange);
     }
 
+    // Re-fit pills to their cells whenever the viewport is resized (desktop
+    // user dragging window, mobile user rotating phone, etc). Debounced
+    // via requestAnimationFrame so it doesn't fire too often during a drag.
+    let resizeRaf = 0;
+    window.addEventListener('resize', () => {
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => {
+            fitPillsToCells();
+            resizeRaf = 0;
+        });
+    });
+
     // Mobile swipe: swipe left = next, swipe right = previous.
     // Works on both the month grid and the week view.
     setupSwipeNavigation();
@@ -594,6 +606,10 @@ function renderWeekView() {
             todayCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     }
+
+    // Auto-shrink pills to fit (week-view pills are wider so usually don't
+    // need scaling, but call this for consistency with month view).
+    fitPillsToCells();
 }
 
 // Helper: compute the last day (Date) of a 7-day week starting at `weekStart`.
@@ -796,9 +812,47 @@ gameItem.addEventListener('click', (e) => {
         calendar.appendChild(dayCell);
     }
 
+    // Auto-shrink every game pill to fit its cell on a single line.
+    // CSS sets white-space: nowrap on .game-item (no wrapping) + transform:
+    // scale(var(--pill-scale, 1)). Here we measure each pill's scrollWidth
+    // vs its clientWidth and set --pill-scale so the content fits inside
+    // the cell without clipping, wrapping, or truncating with ellipsis.
+    fitPillsToCells();
+
     // Auto-scroll to today's cell after the calendar grid is rendered.
     // No-op if today isn't in the currently displayed month.
     scrollToToday();
+}
+
+// Measure each .game-item and set --pill-scale so it fits its container on
+// one line. Called after every renderCalendar() and after a window resize.
+// We use requestAnimationFrame so the layout is settled before we measure.
+function fitPillsToCells() {
+    requestAnimationFrame(() => {
+        const pills = document.querySelectorAll('#calendar .game-item, #weekView .game-item');
+        pills.forEach(pill => {
+            // scrollWidth = the natural width of the content.
+            // clientWidth = the visible width of the pill's container (minus padding).
+            // The pill itself has overflow:hidden + is constrained by the cell width.
+            const sw = pill.scrollWidth;
+            const cw = pill.clientWidth;
+            // Need to account for the pill's own padding in the comparison:
+            // clientWidth includes padding, scrollWidth is content + padding.
+            // So we compare scrollWidth <= clientWidth.
+            if (sw > cw && cw > 0) {
+                // Scale down proportionally. Add 1px breathing room so the
+                // content doesn't touch the right edge of the pill.
+                const scale = (cw - 2) / sw;
+                // Don't scale UP beyond 1.0 (no benefit), only down.
+                // Also clamp to a minimum of 0.5 so the text stays readable.
+                const finalScale = Math.max(0.5, Math.min(1, scale));
+                pill.style.setProperty('--pill-scale', finalScale.toFixed(3));
+            } else {
+                // Fits naturally - reset scale to 1.
+                pill.style.setProperty('--pill-scale', '1');
+            }
+        });
+    });
 }
 
 // Close the game-details modal and restore background scrolling.
