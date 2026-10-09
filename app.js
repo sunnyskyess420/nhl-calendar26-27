@@ -1316,6 +1316,10 @@ function renderMyTeamsView() {
                        'July', 'August', 'September', 'October', 'November', 'December'];
     const monthLabel = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
 
+    // Keep the header title in sync with the browsed month (the calendar and
+    // week view update it in their own render paths).
+    document.getElementById('monthTitle').textContent = monthLabel;
+
     // No favorites at all - helpful empty state with a quick way into month view.
     if (_favorites.size === 0) {
         const empty = document.createElement('div');
