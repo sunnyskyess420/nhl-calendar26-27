@@ -9,7 +9,9 @@ body {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     min-height: 100vh;
     color: #fff;
-    padding: 20px;
+    /* Reduced from 20px to 8px to give the calendar grid more horizontal
+       space. Wider cells = game pills don't need to shrink as much. */
+    padding: 8px;
 }
 
 .container {
@@ -52,7 +54,8 @@ header {
        calendar columns below, so the day-of-week labels stay aligned
        with the calendar cells even on busy days. */
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 10px;
+    /* Reduced from 10px to 5px to match .calendar-grid gap. */
+    gap: 5px;
     padding: 10px 0;
 }
 
@@ -119,7 +122,10 @@ h1 {
        container and any overflow is clipped inside the cell. */
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 10px;
+    /* Reduced from 10px to 5px - smaller gap means each cell gets ~5px wider.
+       Combined with the body padding reduction (20px -> 8px each side),
+       cells are now ~24px wider than before. */
+    gap: 5px;
     margin-bottom: 20px;
 }
 
@@ -794,9 +800,10 @@ h1 {
 
 
 @media (max-width: 768px) {
-    /* Tighter body padding so the calendar gets more horizontal space */
+    /* Tighter body padding so the calendar gets more horizontal space.
+       Reduced from 10px to 6px to give cells even more room on mobile. */
     body {
-        padding: 10px;
+        padding: 6px;
     }
 
     /* Belt-and-suspenders against any element causing horizontal scroll.

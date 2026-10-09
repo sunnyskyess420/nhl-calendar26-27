@@ -544,7 +544,7 @@ function renderWeekView() {
                 const awayAbbr = document.createElement('span');
                 awayAbbr.textContent = game.teams.away.team.abbreviation;
                 awayAbbr.className = 'team-abbr';
-                if (awayResult) {
+                if (awayResult === 'W') {
                     const badge = document.createElement('span');
                     badge.className = `result-badge result-${awayResult.toLowerCase()}`;
                     badge.textContent = awayResult;
@@ -558,7 +558,7 @@ function renderWeekView() {
                 const homeAbbr = document.createElement('span');
                 homeAbbr.textContent = game.teams.home.team.abbreviation;
                 homeAbbr.className = 'team-abbr';
-                if (homeResult) {
+                if (homeResult === 'W') {
                     const badge = document.createElement('span');
                     badge.className = `result-badge result-${homeResult.toLowerCase()}`;
                     badge.textContent = homeResult;
@@ -765,8 +765,8 @@ awayLogo.className = 'team-logo';
 const awayAbbr = document.createElement('span');
 awayAbbr.textContent = game.teams.away.team.abbreviation;
 awayAbbr.className = 'team-abbr';
-// Optional W/L badge next to away team abbreviation.
-if (awayResult) {
+// Optional W badge next to away team abbreviation (only winner, not loser).
+if (awayResult === 'W') {
     const awayBadge = document.createElement('span');
     awayBadge.className = `result-badge result-${awayResult.toLowerCase()}`;
     awayBadge.textContent = awayResult;
@@ -780,8 +780,8 @@ homeLogo.className = 'team-logo';
 const homeAbbr = document.createElement('span');
 homeAbbr.textContent = game.teams.home.team.abbreviation;
 homeAbbr.className = 'team-abbr';
-// Optional W/L badge next to home team abbreviation.
-if (homeResult) {
+// Optional W badge next to home team abbreviation (only winner, not loser).
+if (homeResult === 'W') {
     const homeBadge = document.createElement('span');
     homeBadge.className = `result-badge result-${homeResult.toLowerCase()}`;
     homeBadge.textContent = homeResult;
