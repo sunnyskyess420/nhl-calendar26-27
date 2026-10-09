@@ -83,10 +83,14 @@ function hexToRgba(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Helper: check if a date (first day of its month) is within the allowed season
+// Helper: check whether a date's MONTH overlaps the season interval
+// (month granularity). The season starts mid-month (e.g. Sep 29), so we
+// compare month spans, not just first-of-month - otherwise September's
+// opening games would be unreachable.
 function isInSeason(date) {
   const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  return firstOfMonth >= seasonStart && firstOfMonth <= seasonEnd;
+  const lastOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return firstOfMonth <= seasonEnd && lastOfMonth >= seasonStart;
 }
 
 // ============================================================================
@@ -156,15 +160,16 @@ async function initSeasonBounds() {
   }
 }
 
-// Enable/disable navigation buttons based on current month
+// Enable/disable navigation buttons based on current month. Disabled means
+// the target month does not overlap the season at all.
 function updateNavButtons() {
   const prevBtn = document.getElementById('prevMonth');
   const nextBtn = document.getElementById('nextMonth');
-  // Compute month boundaries
-  const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-  const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-  prevBtn.disabled = prevMonth < seasonStart;
-  nextBtn.disabled = nextMonth > seasonEnd;
+  const prevFirst = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const prevLast  = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);
+  const nextFirst = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+  prevBtn.disabled = prevLast < seasonStart || prevFirst > seasonEnd;
+  nextBtn.disabled = nextFirst > seasonEnd;
 }
 document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
