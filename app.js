@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     setupEventListeners();
     loadSchedule(currentDate);
+    // Kick off the today-strip fetch + start the auto-refresh timer.
+    refreshTodayStrip();
+    setInterval(refreshTodayStrip, 60000);  // refresh every 60s
 });
 
 // Register service worker for PWA
@@ -346,6 +349,10 @@ async function loadSchedule(date) {
         const data = await response.json();
         gamesData = processScheduleData(data);
         renderCalendar(date);
+        // If today happens to be in the month we just loaded, the today strip
+        // can use gamesData directly. Otherwise refreshTodayStrip will fetch
+        // today's month on its own (it tracks which month it has loaded).
+        renderTodayStrip();
     } catch (error) {
         console.error('Error loading schedule:', error);
         showError(
@@ -372,6 +379,177 @@ function processScheduleData(data) {
     }
 
     return games;
+}
+
+// ============================================================================
+// "Today's games" strip - horizontal scrollable row at the top of the page
+// showing today's games with live scores. Auto-refreshes every 60 seconds.
+// ============================================================================
+
+// Track which month the today-strip has loaded data for, so we don't refetch
+// every refresh cycle (only refetch when the displayed month is missing).
+let _todayStripLoadedMonth = null;  // 'YYYY-M' string
+let _todayStripGames = [];          // array of game objects for today
+
+// Refresh the today-strip: fetches today's month if not already loaded,
+// then renders the strip. Called every 60s by setInterval.
+async function refreshTodayStrip() {
+    const today = new Date();
+    const monthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+
+    // If today's month isn't loaded yet, fetch it.
+    if (_todayStripLoadedMonth !== monthKey) {
+        try {
+            const year = today.getFullYear();
+            const month = today.getMonth() + 1;
+            const r = await fetch(`/api/schedule?year=${year}&month=${month}`);
+            if (r.ok) {
+                const data = await r.json();
+                const freshData = processScheduleData(data);
+                // Merge into gamesData so the calendar also benefits (e.g. if
+                // the user is currently viewing a different month, today's
+                // data is still available for the strip).
+                _todayStripGames = [];
+                for (const dateKey in freshData) {
+                    if (!gamesData[dateKey]) gamesData[dateKey] = freshData[dateKey];
+                }
+                _todayStripLoadedMonth = monthKey;
+            }
+        } catch (err) {
+            console.warn('Today strip fetch failed:', err.message);
+            // Fall through - we'll try to render with whatever gamesData has.
+        }
+    }
+
+    renderTodayStrip();
+}
+
+// Render the today-strip from gamesData + _todayStripGames.
+function renderTodayStrip() {
+    const strip = document.getElementById('todayStrip');
+    if (!strip) return;
+    strip.innerHTML = '';
+
+    // Format today's date key (YYYY-MM-DD in local time).
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+    // Find today's games (from gamesData which may have been loaded by either
+    // loadSchedule for the displayed month, or refreshTodayStrip for today's month).
+    const todaysGames = (gamesData && gamesData[todayKey]) || [];
+
+    // Section header.
+    const header = document.createElement('div');
+    header.className = 'today-strip-header';
+    const nowStr = today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (todaysGames.length === 0) {
+        header.innerHTML = `<span class="today-strip-title">Today's Games</span><span class="today-strip-sub">No NHL games today - check back tomorrow</span>`;
+        strip.appendChild(header);
+        // Show the empty-state strip too (so the user sees the message).
+        strip.classList.add('has-games');
+        return;
+    }
+    header.innerHTML = `<span class="today-strip-title">Today's Games</span><span class="today-strip-sub">${todaysGames.length} game${todaysGames.length === 1 ? '' : 's'} - updated ${nowStr}</span>`;
+    strip.appendChild(header);
+    strip.classList.add('has-games');
+
+    // Horizontal scroll row of game chips.
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'today-strip-chips';
+
+    todaysGames.forEach(game => {
+        const chip = document.createElement('div');
+        chip.className = 'today-chip';
+
+        const state = game.gameState || game.status.abstractGameState || 'FUT';
+        if (state === 'LIVE' || state === 'CRIT') {
+            chip.classList.add('live');
+        } else if (state === 'OFF' || state === 'FINAL') {
+            chip.classList.add('final');
+        } else if (state === 'PRE') {
+            chip.classList.add('pre');
+        }
+
+        // Apply team brand colors (consistent with calendar pills).
+        if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
+            const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
+            const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
+            if (awayColor) {
+                const bg = hexToRgba(awayColor, 0.28);
+                if (bg) chip.style.backgroundColor = bg;
+            }
+            if (homeColor) {
+                chip.style.setProperty('--home-color', homeColor);
+            }
+        }
+
+        // Away logo + abbr
+        const awayLogo = document.createElement('img');
+        awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
+        awayLogo.alt = game.teams.away.team.abbreviation;
+        awayLogo.className = 'team-logo';
+        const awayAbbr = document.createElement('span');
+        awayAbbr.textContent = game.teams.away.team.abbreviation;
+        awayAbbr.className = 'team-abbr';
+
+        // Home logo + abbr
+        const homeLogo = document.createElement('img');
+        homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
+        homeLogo.alt = game.teams.home.team.abbreviation;
+        homeLogo.className = 'team-logo';
+        const homeAbbr = document.createElement('span');
+        homeAbbr.textContent = game.teams.home.team.abbreviation;
+        homeAbbr.className = 'team-abbr';
+
+        // Center: score (for live/final) or time (for scheduled) or 'LIVE' badge
+        const center = document.createElement('span');
+        center.className = 'today-chip-center';
+        if (state === 'LIVE' || state === 'CRIT') {
+            const aw = game.teams.away.score;
+            const hm = game.teams.home.score;
+            if (aw !== null && aw !== undefined && hm !== null && hm !== undefined) {
+                center.textContent = `${aw} - ${hm}`;
+            } else {
+                center.textContent = 'LIVE';
+            }
+            const dot = document.createElement('span');
+            dot.className = 'live-dot';
+            center.insertBefore(dot, center.firstChild);
+        } else if (state === 'OFF' || state === 'FINAL') {
+            const aw = game.teams.away.score;
+            const hm = game.teams.home.score;
+            if (aw !== null && aw !== undefined && hm !== null && hm !== undefined) {
+                center.textContent = `${aw} - ${hm}`;
+                center.classList.add('final-score');
+                // Mark the winner green (consistent with calendar pills).
+                if (aw > hm) {
+                    awayAbbr.classList.add('winner');
+                } else if (hm > aw) {
+                    homeAbbr.classList.add('winner');
+                }
+            } else {
+                center.textContent = 'Final';
+            }
+        } else {
+            // Scheduled - show start time.
+            const gd = new Date(game.gameDate);
+            const tm = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            center.textContent = tm;
+            center.classList.add('scheduled-time');
+        }
+
+        // Symmetric layout: [logo] abbr [center] abbr [logo]
+        chip.appendChild(awayLogo);
+        chip.appendChild(awayAbbr);
+        chip.appendChild(center);
+        chip.appendChild(homeAbbr);
+        chip.appendChild(homeLogo);
+
+        chip.addEventListener('click', () => showGameDetails(game));
+        chipsRow.appendChild(chip);
+    });
+
+    strip.appendChild(chipsRow);
 }
 
 // Load NHL schedule for a 7-day window starting at `weekStart`.

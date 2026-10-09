@@ -210,6 +210,180 @@ h1 {
 }
 
 /* ============================================================================
+   "Today's games" strip - horizontal scrollable row at the top
+   ============================================================================ */
+
+.today-strip {
+    /* Hidden by default until first render fills it. */
+    display: none;
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    border-left: 3px solid #e31837;
+}
+
+/* Only show the strip when it has games (or a 'no games' message). */
+.today-strip.has-games {
+    display: block;
+}
+
+.today-strip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    gap: 10px;
+}
+
+.today-strip-title {
+    color: #e31837;
+    font-weight: 700;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.today-strip-sub {
+    color: #888;
+    font-size: 0.75em;
+}
+
+.today-strip-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    /* Hide scrollbar on webkit browsers but keep functionality. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(227, 24, 55, 0.5) transparent;
+}
+
+.today-strip-chips::-webkit-scrollbar {
+    height: 6px;
+}
+
+.today-strip-chips::-webkit-scrollbar-thumb {
+    background: rgba(227, 24, 55, 0.5);
+    border-radius: 3px;
+}
+
+.today-strip-chips::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Individual game chip - mirrors the calendar pill layout but slightly wider
+   to fit the score/time in the middle. */
+.today-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(227, 24, 55, 0.6);
+    border-left: 3px solid var(--home-color, #e31837);
+    border-radius: 6px;
+    cursor: pointer;
+    /* Don't shrink - each chip is its own unit, scrolling handles overflow. */
+    flex: 0 0 auto;
+    min-width: 0;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    white-space: nowrap;
+}
+
+.today-chip:hover {
+    transform: translateY(-2px);
+    background: rgba(227, 24, 55, 0.9);
+}
+
+.today-chip.live {
+    background: rgba(0, 170, 85, 0.45);
+    border: 1px solid #00ff66;
+    border-left-width: 3px;
+    animation: pulse-today-live 2s ease-in-out infinite;
+}
+
+@keyframes pulse-today-live {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 102, 0.5); }
+    50%      { box-shadow: 0 0 8px 2px rgba(0, 255, 102, 0.4); }
+}
+
+.today-chip.final {
+    opacity: 0.85;
+}
+
+.today-chip.pre {
+    background: rgba(255, 140, 0, 0.45);
+}
+
+/* Center element - score or time, between the two team groups. */
+.today-chip-center {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 4px;
+    font-weight: 700;
+    color: #fff;
+    font-size: 0.9em;
+    min-width: 50px;
+    justify-content: center;
+}
+
+.today-chip-center.scheduled-time {
+    color: #4a90e2;
+    background: rgba(74, 144, 226, 0.15);
+    font-size: 0.8em;
+}
+
+.today-chip-center.final-score {
+    color: #ffb3b3;
+}
+
+/* Pulsing green dot that signals 'this game is happening right now'. */
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #00ff66;
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 255, 102, 0.8);
+    animation: blink-dot 1s ease-in-out infinite;
+}
+
+@keyframes blink-dot {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+}
+
+/* Winner highlight (reused from .team-abbr.winner) - the winner's
+   abbreviation glows green. */
+
+/* Mobile: tighten the strip and make chips smaller. */
+@media (max-width: 768px) {
+    .today-strip {
+        margin: 6px 0;
+        padding: 8px 10px;
+    }
+    .today-strip-title {
+        font-size: 0.8em;
+    }
+    .today-strip-sub {
+        font-size: 0.7em;
+    }
+    .today-chip {
+        padding: 5px 8px;
+        gap: 4px;
+        font-size: 0.85em;
+    }
+    .today-chip-center {
+        padding: 2px 6px;
+        min-width: 40px;
+        font-size: 0.85em;
+    }
+}
+
+/* ============================================================================
    Week view - vertical list of day cards
    ============================================================================ */
 
