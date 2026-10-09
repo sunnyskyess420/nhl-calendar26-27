@@ -139,7 +139,12 @@ module.exports = async (req, res) => {
         const dayDate = new Date(day.date + 'T00:00:00Z');
         if (dayDate.getUTCFullYear() !== year || dayDate.getUTCMonth() + 1 !== month) continue;
 
-        const oldShapeGames = day.games.map((g) => {
+        // Content contract: the calendar covers the regular season + playoffs.
+        // gameType 1 = preseason - hidden now that data-derived bounds make
+        // September navigable (the old hardcoded Oct 1 gate used to exclude it).
+        const oldShapeGames = day.games
+          .filter((g) => g.gameType !== 1)
+          .map((g) => {
           const away = g.awayTeam || {};
           const home = g.homeTeam || {};
           const awayName = (away.commonName && away.commonName.default) ||
