@@ -242,9 +242,10 @@ function setupEventListeners() {
         }
     });
 
-    // View toggle tabs - switch between Month and Week views.
+    // View toggle tabs - switch between Month, Week and My Teams views.
     document.getElementById('viewMonth').addEventListener('click', () => setView('month'));
     document.getElementById('viewWeek').addEventListener('click', () => setView('week'));
+    document.getElementById('viewMyTeams').addEventListener('click', () => setView('myteams'));
 
     // Re-render calendar when viewport crosses the narrow breakpoint so the
     // day-of-week labels switch between 'Sun' and 'S' as the user resizes
@@ -254,6 +255,7 @@ function setupEventListeners() {
         // Only re-render if we already have data loaded.
         if (gamesData && Object.keys(gamesData).length > 0) {
             if (currentView === 'week') renderWeekView();
+            else if (currentView === 'myteams') renderMyTeamsView();
             else                          renderCalendar(currentDate);
         }
     };
@@ -300,7 +302,7 @@ function setupEventListeners() {
     });
 }
 
-// Switch between month and week views.
+// Switch between month, week and my-teams views.
 function setView(view) {
     if (view === currentView) return;
     currentView = view;
@@ -308,10 +310,12 @@ function setView(view) {
     // Update tab active state.
     document.getElementById('viewMonth').classList.toggle('active', view === 'month');
     document.getElementById('viewWeek').classList.toggle('active', view === 'week');
+    document.getElementById('viewMyTeams').classList.toggle('active', view === 'myteams');
 
     // Show/hide the appropriate container.
     document.getElementById('calendar').classList.toggle('hidden', view !== 'month');
     document.getElementById('weekView').classList.toggle('hidden', view !== 'week');
+    document.getElementById('myTeamsView').classList.toggle('hidden', view !== 'myteams');
     // The day-of-week row (Sun Mon Tue...) only makes sense in month view.
     document.getElementById('dayHeaders').classList.toggle('hidden', view !== 'month');
 
@@ -319,11 +323,30 @@ function setView(view) {
         // First time entering week view, or returning to it. Center on today.
         if (!currentWeekStart) currentWeekStart = getTodayWeekStart();
         loadWeekSchedule(currentWeekStart);
+    } else if (view === 'myteams') {
+        // My Teams view reuses the displayed month's data; loadSchedule
+        // dispatches rendering based on the active view.
+        if (monthDataLoaded(currentDate)) {
+            renderMyTeamsView();
+        } else {
+            loadSchedule(currentDate);
+        }
     } else {
         renderCalendar(currentDate);
         updateNavButtons();
         updateTodayJumpVisibility();
     }
+}
+
+// True when we already have schedule data for the given month (so My Teams
+// can render instantly without a refetch).
+function monthDataLoaded(date) {
+    if (!gamesData) return false;
+    const prefix = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+    for (const key in gamesData) {
+        if (key.startsWith(prefix)) return true;
+    }
+    return false;
 }
 
 // Compute the start of the week centered on today (today minus 3 days).
@@ -362,7 +385,9 @@ function updateTodayJumpVisibility() {
 
     // Find today's element in the current view.
     let todayEl = null;
-    if (currentView === 'week') {
+    if (currentView === 'myteams') {
+        todayEl = null;  // month list has no today cell - show button when away
+    } else if (currentView === 'week') {
         todayEl = document.querySelector('.week-day-card.is-today');
     } else {
         todayEl = document.querySelector('.day-cell.today');
@@ -460,7 +485,8 @@ function navigateWeek(direction) {
 function setupSwipeNavigation() {
     const targets = [
         document.getElementById('calendar'),
-        document.getElementById('weekView')
+        document.getElementById('weekView'),
+        document.getElementById('myTeamsView')
     ];
     for (const cal of targets) {
         if (!cal) continue;
@@ -520,12 +546,18 @@ async function loadSchedule(date) {
         }
         const data = await response.json();
         gamesData = processScheduleData(data);
-        renderCalendar(date);
+        // Render whichever view is active (My Teams reuses the month data).
+        if (currentView === 'myteams') {
+            renderMyTeamsView();
+        } else {
+            renderCalendar(date);
+        }
         // If today happens to be in the month we just loaded, the today strip
         // can use gamesData directly. Otherwise refreshTodayStrip will fetch
         // today's month on its own (it tracks which month it has loaded).
         renderTodayStrip();
         updateTodayJumpVisibility();
+        updateFavCountdown();
     } catch (error) {
         console.error('Error loading schedule:', error);
         showError(
@@ -540,6 +572,13 @@ async function loadSchedule(date) {
     }
 }
 
+// In-memory season cache: union of every month/week fetch this session.
+// Lets the My Teams countdown find the next favorite game across all months
+// seen so far (today's month is always loaded, so the rest of this month is
+// covered at minimum). Fresh fetches replace per-date entries, so cached
+// games keep their latest state (scores, game state, etc).
+const _seasonGameCache = {};
+
 // Process schedule data from NHL API
 function processScheduleData(data) {
     const games = {};
@@ -548,6 +587,8 @@ function processScheduleData(data) {
         data.dates.forEach(dateData => {
             const dateKey = dateData.date;
             games[dateKey] = dateData.games || [];
+            // Merge into the season cache (latest fetch wins per date).
+            _seasonGameCache[dateKey] = games[dateKey];
         });
     }
 
@@ -612,16 +653,140 @@ function gameHasFavorite(game) {
            isFavoriteTeam(game.teams.home.team.abbreviation);
 }
 
-// Re-render both the calendar and today strip after favorites change,
-// so the gold border highlight appears immediately. Cheap operation
-// since it's pure DOM (no refetch).
+// Re-render the active view + today strip after favorites change, so the
+// gold border highlight appears immediately. Cheap operation since it's
+// pure DOM (no refetch).
 function refreshAfterFavoritesChange() {
     if (currentView === 'week') {
         renderWeekView();
+    } else if (currentView === 'myteams') {
+        renderMyTeamsView();
     } else {
         renderCalendar(currentDate);
     }
     renderTodayStrip();
+    updateFavCountdown();
+}
+
+// ============================================================================
+// Next favorite game countdown (slim bar under the header)
+//
+// Searches the season cache for the user's next favorite-team game, shows a
+// live countdown while it's in the future and "LIVE now" while it's in
+// progress. Hidden entirely when there are no favorites or nothing upcoming
+// in the loaded data. Clicking it opens the game's detail popup.
+// ============================================================================
+
+let _nextFavGame = null;          // { game, live } for the 1s ticker
+let _countdownTimerStarted = false;
+
+const MS_DAY = 24 * 60 * 60 * 1000;
+const MS_HOUR = 60 * 60 * 1000;
+const MS_MINUTE = 60 * 1000;
+
+// Local-time YYYY-MM-DD key (same format the schedule API uses).
+function localDateKey(d) {
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+}
+
+function formatCountdown(ms) {
+    if (ms <= 0) return 'starting now';
+    const days = Math.floor(ms / MS_DAY);
+    const hours = Math.floor((ms % MS_DAY) / MS_HOUR);
+    const mins = Math.floor((ms % MS_HOUR) / MS_MINUTE);
+    const secs = Math.floor((ms % MS_MINUTE) / 1000);
+    if (days > 0) return `in ${days}d ${hours}h`;
+    if (hours > 0) return `in ${hours}h ${mins}m`;
+    if (mins > 0) return `in ${mins}m ${secs}s`;
+    return `in ${secs}s`;
+}
+
+// Soonest favorite game at/after now; a live favorite game wins instantly.
+function findNextFavoriteGame() {
+    const now = new Date();
+    const todayKey = localDateKey(now);
+    let best = null;
+    let bestTime = Infinity;
+    for (const dateKey in _seasonGameCache) {
+        if (dateKey < todayKey) continue;  // ISO strings compare chronologically
+        const games = _seasonGameCache[dateKey] || [];
+        for (const game of games) {
+            if (!gameHasFavorite(game)) continue;
+            const state = game.gameState || game.status.abstractGameState || 'FUT';
+            if (state === 'LIVE' || state === 'CRIT') {
+                return { game, live: true };
+            }
+            const t = new Date(game.gameDate).getTime();
+            if (t < now.getTime()) continue;   // already started (not live)
+            if (t < bestTime) {
+                bestTime = t;
+                best = { game, live: false };
+            }
+        }
+    }
+    return best;
+}
+
+function updateFavCountdown() {
+    const el = document.getElementById('favCountdown');
+    if (!el) return;
+
+    if (_favorites.size === 0) {
+        el.classList.add('hidden');
+        _nextFavGame = null;
+        return;
+    }
+
+    const found = findNextFavoriteGame();
+    _nextFavGame = found;
+    if (!found) {
+        el.classList.add('hidden');
+        return;
+    }
+
+    el.classList.remove('hidden');
+    renderFavCountdownText(el, found);
+
+    // Start the 1s display ticker once (cheap textContent-level updates).
+    if (!_countdownTimerStarted) {
+        _countdownTimerStarted = true;
+        setInterval(() => {
+            const elNow = document.getElementById('favCountdown');
+            if (!elNow || elNow.classList.contains('hidden')) return;
+            if (!_nextFavGame || _nextFavGame.live) return;
+            const ms = new Date(_nextFavGame.game.gameDate).getTime() - Date.now();
+            if (ms <= 0) {
+                // Countdown finished - re-evaluate (may flip to LIVE or next game).
+                updateFavCountdown();
+            } else {
+                renderFavCountdownText(elNow, _nextFavGame);
+            }
+        }, 1000);
+    }
+}
+
+function renderFavCountdownText(el, found) {
+    const g = found.game;
+    const matchup = `${g.teams.away.team.abbreviation} @ ${g.teams.home.team.abbreviation}`;
+    if (found.live) {
+        const aw = g.teams.away.score;
+        const hm = g.teams.home.score;
+        el.innerHTML =
+            `<span class="fav-countdown-star">★</span> ` +
+            `<strong>${escapeHtml(matchup)}</strong> is LIVE now` +
+            (aw !== null && aw !== undefined && hm !== null && hm !== undefined
+                ? ` <span class="fav-countdown-score">${escapeHtml(String(aw))} - ${escapeHtml(String(hm))}</span>`
+                : '');
+        el.classList.add('is-live');
+    } else {
+        const ms = new Date(g.gameDate).getTime() - Date.now();
+        el.innerHTML =
+            `<span class="fav-countdown-star">★</span> Next: ` +
+            `<strong>${escapeHtml(matchup)}</strong> ` +
+            `<span class="fav-countdown-time">${escapeHtml(formatCountdown(ms))}</span>`;
+        el.classList.remove('is-live');
+    }
+    el.onclick = () => showGameDetails(g);
 }
 
 // ============================================================================
@@ -672,6 +837,7 @@ async function refreshTodayStrip() {
     await refreshLiveTodayGames();
 
     renderTodayStrip();
+    updateFavCountdown();
 }
 
 // Fetch fresh detail for each of today's games that is LIVE or PRE,
@@ -679,7 +845,7 @@ async function refreshTodayStrip() {
 // This makes the today-strip scores update in real time every 60s.
 async function refreshLiveTodayGames() {
     const today = new Date();
-    const todayKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    const todayKey = localDateKey(today);
     const todaysGames = (gamesData && gamesData[todayKey]) || [];
     if (todaysGames.length === 0) return;
 
@@ -739,7 +905,7 @@ function renderTodayStrip() {
 
     // Format today's date key (YYYY-MM-DD in local time).
     const today = new Date();
-    const todayKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    const todayKey = localDateKey(today);
 
     // Find today's games (from gamesData which may have been loaded by either
     // loadSchedule for the displayed month, or refreshTodayStrip for today's month).
@@ -764,7 +930,12 @@ function renderTodayStrip() {
     const chipsRow = document.createElement('div');
     chipsRow.className = 'today-strip-chips';
 
-    todaysGames.forEach(game => {
+    // Favorites first: stable sort keeps chronological order within groups.
+    const orderedGames = todaysGames.slice().sort(
+        (a, b) => (gameHasFavorite(b) ? 1 : 0) - (gameHasFavorite(a) ? 1 : 0)
+    );
+
+    orderedGames.forEach(game => {
         const chip = document.createElement('div');
         chip.className = 'today-chip';
 
@@ -1127,6 +1298,168 @@ function updateWeekNavButtons() {
     const seasonEndDay = new Date(seasonEnd.getFullYear(), seasonEnd.getMonth(), seasonEnd.getDate());
     prevBtn.disabled = (weekEndDate <= seasonStartDay);
     nextBtn.disabled = (currentWeekStart >= seasonEndDay);
+}
+
+// ============================================================================
+// My Teams view - favorite-team games for the displayed month
+// ============================================================================
+
+// Render the My Teams view: favorite-team games grouped by date for the
+// month the user is currently navigating (prev/next arrows still work).
+// Shares the week-view pill markup so visuals stay consistent.
+function renderMyTeamsView() {
+    const container = document.getElementById('myTeamsView');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthLabel = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+
+    // No favorites at all - helpful empty state with a quick way into month view.
+    if (_favorites.size === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'myteams-empty';
+        empty.innerHTML = `
+            <div class="myteams-empty-star">☆</div>
+            <h2>No favorite teams yet</h2>
+            <p>Open any game and tap the <strong>star</strong> next to a team to follow it.<br>
+            Your favorite teams' games will show up here.</p>
+            <button class="myteams-hint-btn" type="button">Browse the month view</button>
+        `;
+        empty.querySelector('.myteams-hint-btn').addEventListener('click', () => setView('month'));
+        container.appendChild(empty);
+        return;
+    }
+
+    // Collect favorite games in the displayed month, grouped by date.
+    const prefix = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const byDate = [];
+    for (const dateKey of Object.keys(gamesData).sort()) {
+        if (!dateKey.startsWith(prefix)) continue;
+        const favGames = (gamesData[dateKey] || []).filter(gameHasFavorite);
+        if (favGames.length > 0) byDate.push({ dateKey, games: favGames });
+    }
+
+    const totalGames = byDate.reduce((sum, d) => sum + d.games.length, 0);
+
+    // Section intro line.
+    const intro = document.createElement('div');
+    intro.className = 'myteams-intro';
+    intro.innerHTML = `<span class="myteams-title">★ My Teams</span>` +
+        (totalGames === 0
+            ? `<span class="myteams-sub">No games for your teams in ${escapeHtml(monthLabel)}</span>`
+            : `<span class="myteams-sub">${totalGames} game${totalGames === 1 ? '' : 's'} for your teams in ${escapeHtml(monthLabel)}</span>`);
+    container.appendChild(intro);
+
+    if (totalGames === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'myteams-empty myteams-empty-small';
+        empty.innerHTML = `
+            <div class="myteams-empty-star">★</div>
+            <p>Nothing this month. Use the arrows to check other months -<br>
+            the countdown under the header always shows your next upcoming game.</p>
+        `;
+        container.appendChild(empty);
+        return;
+    }
+
+    const dayNamesLong = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const todayKey = localDateKey(new Date());
+
+    byDate.forEach(({ dateKey, games }) => {
+        // Parse dateKey (YYYY-MM-DD) as a local day.
+        const parts = dateKey.split('-').map(Number);
+        const dayDate = new Date(parts[0], parts[1] - 1, parts[2]);
+
+        const dateHeading = document.createElement('div');
+        dateHeading.className = 'myteams-date-heading';
+        dateHeading.innerHTML =
+            `<span class="myteams-date-name">${dayNamesLong[dayDate.getDay()]}, ${monthShort[dayDate.getMonth()]} ${dayDate.getDate()}</span>` +
+            (dateKey === todayKey ? '<span class="today-badge">TODAY</span>' : '');
+        container.appendChild(dateHeading);
+
+        games.forEach(game => {
+            const gameItem = document.createElement('div');
+            gameItem.className = 'game-item week-game-item myteams-game-item favorite';
+
+            // State class for styling (live pulse / pre-game / final).
+            const state = game.gameState || game.status.abstractGameState || 'FUT';
+            if (state === 'LIVE' || state === 'CRIT') {
+                gameItem.classList.add('game-live');
+            } else if (state === 'PRE') {
+                gameItem.classList.add('game-pre');
+            } else if (state === 'OFF' || state === 'FINAL') {
+                gameItem.classList.add('game-final');
+            }
+
+            // Team colors (same treatment as week view).
+            if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
+                const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
+                const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
+                if (awayColor) {
+                    const bg = hexToRgba(awayColor, 0.28);
+                    if (bg) gameItem.style.backgroundColor = bg;
+                }
+                if (homeColor) gameItem.style.setProperty('--home-color', homeColor);
+            }
+
+            // Winner highlight for finished games.
+            let awayWin = false, homeWin = false;
+            if ((state === 'OFF' || state === 'FINAL') &&
+                game.teams.away.score !== null && game.teams.away.score !== undefined &&
+                game.teams.home.score !== null && game.teams.home.score !== undefined) {
+                const aw = Number(game.teams.away.score);
+                const hm = Number(game.teams.home.score);
+                awayWin = aw > hm;
+                homeWin = hm > aw;
+            }
+
+            const awayLogo = document.createElement('img');
+            awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
+            awayLogo.alt = game.teams.away.team.abbreviation;
+            awayLogo.className = 'team-logo';
+            const awayAbbr = document.createElement('span');
+            awayAbbr.textContent = game.teams.away.team.abbreviation;
+            awayAbbr.className = 'team-abbr';
+            if (awayWin) awayAbbr.classList.add('winner');
+
+            const homeLogo = document.createElement('img');
+            homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
+            homeLogo.alt = game.teams.home.team.abbreviation;
+            homeLogo.className = 'team-logo';
+            const homeAbbr = document.createElement('span');
+            homeAbbr.textContent = game.teams.home.team.abbreviation;
+            homeAbbr.className = 'team-abbr';
+            if (homeWin) homeAbbr.classList.add('winner');
+
+            // Score for started games, start time for scheduled ones.
+            const scoreSpan = document.createElement('span');
+            scoreSpan.className = 'week-game-score';
+            if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
+                scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
+            } else {
+                const gd = new Date(game.gameDate);
+                scoreSpan.textContent = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            gameItem.appendChild(awayLogo);
+            gameItem.appendChild(awayAbbr);
+            const sep = document.createElement('span');
+            sep.textContent = ' @ ';
+            gameItem.appendChild(sep);
+            gameItem.appendChild(homeAbbr);
+            gameItem.appendChild(homeLogo);
+            gameItem.appendChild(scoreSpan);
+
+            gameItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showGameDetails(game);
+            });
+            container.appendChild(gameItem);
+        });
+    });
 }
 
 // Render the calendar

@@ -1449,3 +1449,142 @@ h1 {
     background: rgba(255, 107, 107, 0.1);
     text-shadow: none;
 }
+
+/* ============================================================================
+   My Teams view + next favorite game countdown
+   ============================================================================ */
+
+/* Countdown bar under the header (next favorite game) */
+.fav-countdown {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    margin: 0 0 12px;
+    padding: 8px 14px;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    border-radius: 10px;
+    font-size: 0.95em;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    user-select: none;
+}
+
+.fav-countdown:hover {
+    background: rgba(255, 215, 0, 0.14);
+}
+
+.fav-countdown-star {
+    color: #ffd700;
+}
+
+.fav-countdown-time {
+    font-weight: 700;
+    color: #ffd700;
+    font-variant-numeric: tabular-nums;
+}
+
+.fav-countdown.is-live {
+    background: rgba(46, 204, 113, 0.12);
+    border-color: rgba(46, 204, 113, 0.5);
+}
+
+.fav-countdown.is-live .fav-countdown-score {
+    font-weight: 700;
+    color: #2ecc71;
+}
+
+/* My Teams view container */
+.myteams-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.myteams-intro {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 4px 2px 6px;
+    flex-wrap: wrap;
+}
+
+.myteams-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #ffd700;
+}
+
+.myteams-sub {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.95em;
+}
+
+.myteams-date-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 4px 2px;
+}
+
+.myteams-date-name {
+    font-weight: 700;
+    color: #e31837;
+    font-size: 1.02em;
+}
+
+.myteams-game-item {
+    cursor: pointer;
+}
+
+/* Empty states (no favorites yet / no games this month) */
+.myteams-empty {
+    text-align: center;
+    padding: 40px 20px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 14px;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.myteams-empty h2 {
+    color: #ffd700;
+    margin-bottom: 10px;
+}
+
+.myteams-empty p {
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+.myteams-empty-star {
+    font-size: 3em;
+    color: #ffd700;
+    margin-bottom: 8px;
+}
+
+.myteams-hint-btn {
+    background: #e31837;
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.myteams-hint-btn:hover {
+    background: #c41230;
+}
+
+.myteams-empty-small {
+    padding: 26px 20px;
+}
+
+.myteams-empty-small .myteams-empty-star {
+    font-size: 2em;
+}
