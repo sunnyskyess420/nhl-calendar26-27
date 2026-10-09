@@ -233,15 +233,44 @@ function setupEventListeners() {
         }
     });
 
-    // ESC key closes the modal.
+    // ESC key closes the modal, then the day sheet.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const modal = document.getElementById('gameDetails');
             if (modal && !modal.classList.contains('hidden')) {
                 closeGameDetails();
+                return;
             }
+            closeDaySheet();
         }
     });
+
+    // Day sheet (compact month mode): backdrop tap + close button + swipe
+    // down to dismiss (only when the panel is scrolled to the top, so
+    // scrolling long sheet content never accidentally closes it).
+    const daySheet = document.getElementById('daySheet');
+    if (daySheet) {
+        daySheet.querySelector('.day-sheet-backdrop').addEventListener('click', closeDaySheet);
+        const sheetClose = document.getElementById('daySheetClose');
+        if (sheetClose) sheetClose.addEventListener('click', closeDaySheet);
+        const panel = daySheet.querySelector('.day-sheet-panel');
+        let sheetTouch = null;
+        panel.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) { sheetTouch = null; return; }
+            sheetTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }, { passive: true });
+        panel.addEventListener('touchend', (e) => {
+            if (!sheetTouch) return;
+            const t = e.changedTouches[0];
+            sheetTouch = null;
+            if (!t) return;
+            const dy = t.clientY - sheetTouch.y;
+            const dx = t.clientX - sheetTouch.x;
+            if (panel.scrollTop <= 0 && dy > 60 && Math.abs(dx) < Math.abs(dy)) {
+                closeDaySheet();
+            }
+        }, { passive: true });
+    }
 
     // View toggle tabs - switch between Month, Week and My Teams views.
     document.getElementById('viewMonth').addEventListener('click', () => setView('month'));
@@ -1283,106 +1312,10 @@ function renderWeekView() {
         } else {
             let dayHasLive = false;
             dayGames.forEach(game => {
-                const gameItem = document.createElement('div');
-                gameItem.className = 'game-item week-game-item';
-
-                // If any team in this game is a favorite, add a gold border class.
-                if (gameHasFavorite(game)) {
-                    gameItem.classList.add('favorite');
-                }
-
                 const state = game.gameState || game.status.abstractGameState || 'FUT';
-                if (state === 'LIVE' || state === 'CRIT') {
-                    gameItem.classList.add('game-live');
-                    dayHasLive = true;
-                } else if (state === 'PRE') {
-                    gameItem.classList.add('game-pre');
-                } else if (state === 'OFF' || state === 'FINAL') {
-                    gameItem.classList.add('game-final');
-                }
-
-                // Derive W/L for finished games.
-                let awayResult = null, homeResult = null;
-                if ((state === 'OFF' || state === 'FINAL') &&
-                    game.teams.away.score !== null && game.teams.away.score !== undefined &&
-                    game.teams.home.score !== null && game.teams.home.score !== undefined) {
-                    const aw = Number(game.teams.away.score);
-                    const hm = Number(game.teams.home.score);
-                    if (aw > hm)      { awayResult = 'W'; homeResult = 'L'; }
-                    else if (hm > aw)  { awayResult = 'L'; homeResult = 'W'; }
-                    else               { awayResult = 'T'; homeResult = 'T'; }
-                }
-
-                // Team-colored pill (same as month view).
-                if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
-                    const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
-                    const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
-                    if (awayColor) {
-                        const bg = hexToRgba(awayColor, 0.28);
-                        if (bg) gameItem.style.backgroundColor = bg;
-                    }
-                    if (homeColor) gameItem.style.setProperty('--home-color', homeColor);
-                }
-
-                // Logos + abbreviations + score + badges.
-                const awayLogo = document.createElement('img');
-                awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
-                awayLogo.alt = game.teams.away.team.abbreviation;
-                awayLogo.className = 'team-logo';
-                const awayAbbr = document.createElement('span');
-                awayAbbr.textContent = game.teams.away.team.abbreviation;
-                awayAbbr.className = 'team-abbr';
-                if (awayResult === 'W') {
-                    // Highlight winner with a class (no text badge) - takes 0 horizontal space.
-                    awayAbbr.classList.add('winner');
-                }
-
-                const homeLogo = document.createElement('img');
-                homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
-                homeLogo.alt = game.teams.home.team.abbreviation;
-                homeLogo.className = 'team-logo';
-                const homeAbbr = document.createElement('span');
-                homeAbbr.textContent = game.teams.home.team.abbreviation;
-                homeAbbr.className = 'team-abbr';
-                if (homeResult === 'W') {
-                    homeAbbr.classList.add('winner');
-                }
-
-                // Score (live or final games only).
-                const scoreSpan = document.createElement('span');
-                scoreSpan.className = 'week-game-score';
-                if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
-                    scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
-                    // Live games show period + clock inline (data merged by
-                    // refreshLiveTodayGames; applied on the next render).
-                    if (state === 'LIVE' || state === 'CRIT') {
-                        const badge = liveBadgeText(game);
-                        if (badge) scoreSpan.textContent += ' · ' + badge;
-                    }
-                } else {
-                    // Show game time for scheduled games.
-                    const gd = new Date(game.gameDate);
-                    const tm = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    scoreSpan.textContent = tm;
-                }
-
-                gameItem.appendChild(awayLogo);
-                gameItem.appendChild(awayAbbr);
-                const sep = document.createElement('span');
-                sep.textContent = ' @ ';
-                gameItem.appendChild(sep);
-                // Symmetrical layout: away logo | away abbr | @ | home abbr | home logo
-                // Logos frame the matchup on the outer edges, abbreviations grouped around @.
-                gameItem.appendChild(homeAbbr);
-                gameItem.appendChild(homeLogo);
-                gameItem.appendChild(scoreSpan);
-
-                gameItem.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    showGameDetails(game);
-                });
-
-                cardBody.appendChild(gameItem);
+                if (state === 'LIVE' || state === 'CRIT') dayHasLive = true;
+                // Shared row builder (also used by My Teams + the mobile day sheet).
+                cardBody.appendChild(buildGameRow(game));
             });
             if (dayHasLive) card.classList.add('has-live');
         }
@@ -1512,89 +1445,159 @@ function renderMyTeamsView() {
         container.appendChild(dateHeading);
 
         games.forEach(game => {
-            const gameItem = document.createElement('div');
-            gameItem.className = 'game-item week-game-item myteams-game-item favorite';
-
-            // State class for styling (live pulse / pre-game / final).
-            const state = game.gameState || game.status.abstractGameState || 'FUT';
-            if (state === 'LIVE' || state === 'CRIT') {
-                gameItem.classList.add('game-live');
-            } else if (state === 'PRE') {
-                gameItem.classList.add('game-pre');
-            } else if (state === 'OFF' || state === 'FINAL') {
-                gameItem.classList.add('game-final');
-            }
-
-            // Team colors (same treatment as week view).
-            if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
-                const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
-                const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
-                if (awayColor) {
-                    const bg = hexToRgba(awayColor, 0.28);
-                    if (bg) gameItem.style.backgroundColor = bg;
-                }
-                if (homeColor) gameItem.style.setProperty('--home-color', homeColor);
-            }
-
-            // Winner highlight for finished games.
-            let awayWin = false, homeWin = false;
-            if ((state === 'OFF' || state === 'FINAL') &&
-                game.teams.away.score !== null && game.teams.away.score !== undefined &&
-                game.teams.home.score !== null && game.teams.home.score !== undefined) {
-                const aw = Number(game.teams.away.score);
-                const hm = Number(game.teams.home.score);
-                awayWin = aw > hm;
-                homeWin = hm > aw;
-            }
-
-            const awayLogo = document.createElement('img');
-            awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
-            awayLogo.alt = game.teams.away.team.abbreviation;
-            awayLogo.className = 'team-logo';
-            const awayAbbr = document.createElement('span');
-            awayAbbr.textContent = game.teams.away.team.abbreviation;
-            awayAbbr.className = 'team-abbr';
-            if (awayWin) awayAbbr.classList.add('winner');
-
-            const homeLogo = document.createElement('img');
-            homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
-            homeLogo.alt = game.teams.home.team.abbreviation;
-            homeLogo.className = 'team-logo';
-            const homeAbbr = document.createElement('span');
-            homeAbbr.textContent = game.teams.home.team.abbreviation;
-            homeAbbr.className = 'team-abbr';
-            if (homeWin) homeAbbr.classList.add('winner');
-
-            // Score for started games, start time for scheduled ones.
-            const scoreSpan = document.createElement('span');
-            scoreSpan.className = 'week-game-score';
-            if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
-                scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
-                if (state === 'LIVE' || state === 'CRIT') {
-                    const badge = liveBadgeText(game);
-                    if (badge) scoreSpan.textContent += ' · ' + badge;
-                }
-            } else {
-                const gd = new Date(game.gameDate);
-                scoreSpan.textContent = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            }
-
-            gameItem.appendChild(awayLogo);
-            gameItem.appendChild(awayAbbr);
-            const sep = document.createElement('span');
-            sep.textContent = ' @ ';
-            gameItem.appendChild(sep);
-            gameItem.appendChild(homeAbbr);
-            gameItem.appendChild(homeLogo);
-            gameItem.appendChild(scoreSpan);
-
-            gameItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showGameDetails(game);
-            });
-            container.appendChild(gameItem);
+            // Shared row builder; these rows are all favorite games so the
+            // gold border is added automatically by gameHasFavorite().
+            container.appendChild(buildGameRow(game, 'myteams-game-item'));
         });
     });
+}
+
+// ============================================================================
+// Mobile day sheet (compact month mode) + shared game row builder
+// ============================================================================
+
+// True below the 600px breakpoint - the compact month mode threshold.
+function isNarrowViewport() {
+    return window.matchMedia('(max-width: 600px)').matches;
+}
+
+// Build a game row shared by the week view, My Teams view and the mobile day
+// sheet: team colors, logos, winner highlight, live/pre/final state classes,
+// favorite gold border, score (or start time) and the live period+clock.
+// `extraClasses` appends view-specific classes; `onOpen(game)` replaces the
+// default click action (opening the detail popup).
+function buildGameRow(game, extraClasses, onOpen) {
+    const gameItem = document.createElement('div');
+    gameItem.className = 'game-item week-game-item' + (extraClasses ? ' ' + extraClasses : '');
+
+    const state = game.gameState || game.status.abstractGameState || 'FUT';
+    if (state === 'LIVE' || state === 'CRIT') {
+        gameItem.classList.add('game-live');
+    } else if (state === 'PRE') {
+        gameItem.classList.add('game-pre');
+    } else if (state === 'OFF' || state === 'FINAL') {
+        gameItem.classList.add('game-final');
+    }
+    if (gameHasFavorite(game)) {
+        gameItem.classList.add('favorite');
+    }
+
+    // Team colors (same treatment across views).
+    if (state === 'FUT' || state === 'OFF' || state === 'FINAL') {
+        const awayColor = TEAM_COLORS[game.teams.away.team.abbreviation];
+        const homeColor = TEAM_COLORS[game.teams.home.team.abbreviation];
+        if (awayColor) {
+            const bg = hexToRgba(awayColor, 0.28);
+            if (bg) gameItem.style.backgroundColor = bg;
+        }
+        if (homeColor) gameItem.style.setProperty('--home-color', homeColor);
+    }
+
+    // Winner highlight for finished games.
+    let awayWin = false, homeWin = false;
+    if ((state === 'OFF' || state === 'FINAL') &&
+        game.teams.away.score !== null && game.teams.away.score !== undefined &&
+        game.teams.home.score !== null && game.teams.home.score !== undefined) {
+        const aw = Number(game.teams.away.score);
+        const hm = Number(game.teams.home.score);
+        if (aw > hm)      { awayWin = true; }
+        else if (hm > aw) { homeWin = true; }
+    }
+
+    const awayLogo = document.createElement('img');
+    awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
+    awayLogo.alt = game.teams.away.team.abbreviation;
+    awayLogo.className = 'team-logo';
+    const awayAbbr = document.createElement('span');
+    awayAbbr.textContent = game.teams.away.team.abbreviation;
+    awayAbbr.className = 'team-abbr';
+    if (awayWin) awayAbbr.classList.add('winner');
+
+    const homeLogo = document.createElement('img');
+    homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
+    homeLogo.alt = game.teams.home.team.abbreviation;
+    homeLogo.className = 'team-logo';
+    const homeAbbr = document.createElement('span');
+    homeAbbr.textContent = game.teams.home.team.abbreviation;
+    homeAbbr.className = 'team-abbr';
+    if (homeWin) homeAbbr.classList.add('winner');
+
+    // Score for started games, start time for scheduled ones; live games
+    // also show period + clock inline.
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'week-game-score';
+    if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
+        scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
+        if (state === 'LIVE' || state === 'CRIT') {
+            const badge = liveBadgeText(game);
+            if (badge) scoreSpan.textContent += ' \u00b7 ' + badge;
+        }
+    } else {
+        const gd = new Date(game.gameDate);
+        scoreSpan.textContent = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    gameItem.appendChild(awayLogo);
+    gameItem.appendChild(awayAbbr);
+    const sep = document.createElement('span');
+    sep.textContent = ' @ ';
+    gameItem.appendChild(sep);
+    gameItem.appendChild(homeAbbr);
+    gameItem.appendChild(homeLogo);
+    gameItem.appendChild(scoreSpan);
+
+    gameItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (onOpen) onOpen(game);
+        else showGameDetails(game);
+    });
+    return gameItem;
+}
+
+// Bottom sheet showing a day's full game rows (compact month mode).
+function openDaySheet(dateKey) {
+    const sheet = document.getElementById('daySheet');
+    const title = document.getElementById('daySheetTitle');
+    const body = document.getElementById('daySheetBody');
+    if (!sheet || !title || !body) return;
+
+    const parts = dateKey.split('-').map(Number);
+    const dayDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    const dayNamesLong = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    const games = (gamesData && gamesData[dateKey]) || [];
+
+    title.textContent = `${dayNamesLong[dayDate.getDay()]}, ${monthNames[dayDate.getMonth()]} ${dayDate.getDate()}`;
+
+    body.innerHTML = '';
+    if (games.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'week-no-games';
+        empty.textContent = 'No games scheduled';
+        body.appendChild(empty);
+    } else {
+        games.forEach(game => {
+            body.appendChild(buildGameRow(game, null, (g) => {
+                closeDaySheet();
+                showGameDetails(g);
+            }));
+        });
+    }
+
+    sheet.classList.remove('hidden');
+    sheet.setAttribute('aria-hidden', 'false');
+    // Reset scroll so a previously-scrolled sheet starts at the handle.
+    sheet.querySelector('.day-sheet-panel').scrollTop = 0;
+    lockBodyScroll();
+}
+
+function closeDaySheet() {
+    const sheet = document.getElementById('daySheet');
+    if (!sheet || sheet.classList.contains('hidden')) return;
+    sheet.classList.add('hidden');
+    sheet.setAttribute('aria-hidden', 'true');
+    unlockBodyScroll();
 }
 
 // Render the calendar
@@ -1637,6 +1640,12 @@ function renderCalendar(date) {
     const isCurrentMonth = today.getFullYear() === date.getFullYear() &&
                           today.getMonth() === date.getMonth();
 
+    // Compact month mode (phones, <600px): cells shrink to date number +
+    // colored dots (+ '+N'); tapping a day opens the bottom sheet with full
+    // game rows. Desktop keeps the full pills (see below).
+    const compact = isNarrowViewport();
+    calendar.classList.toggle('compact', compact);
+
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDay; i++) {
         const emptyCell = document.createElement('div');
@@ -1666,6 +1675,39 @@ function renderCalendar(date) {
         // Add games for this day
         if (gamesData[dateKey] && gamesData[dateKey].length > 0) {
             let dayHasLive = false;
+            const dayGames = gamesData[dateKey];
+
+            if (compact) {
+                // COMPACT: up to 4 colored dots (away team color, green for
+                // live games) + '+N' overflow label. Tap opens the day sheet.
+                dayGames.forEach(game => {
+                    const state = game.gameState || game.status.abstractGameState || 'FUT';
+                    if (state === 'LIVE' || state === 'CRIT') dayHasLive = true;
+                });
+                const dots = document.createElement('div');
+                dots.className = 'game-dots';
+                dayGames.slice(0, 4).forEach(game => {
+                    const state = game.gameState || game.status.abstractGameState || 'FUT';
+                    const dot = document.createElement('span');
+                    dot.className = 'game-dot';
+                    if (state === 'LIVE' || state === 'CRIT') {
+                        dot.style.backgroundColor = '#00ff66';
+                        dot.classList.add('is-live');
+                    } else {
+                        dot.style.backgroundColor = TEAM_COLORS[game.teams.away.team.abbreviation] || '#e31837';
+                    }
+                    dots.appendChild(dot);
+                });
+                if (dayGames.length > 4) {
+                    const more = document.createElement('span');
+                    more.className = 'game-dots-more';
+                    more.textContent = '+' + (dayGames.length - 4);
+                    dots.appendChild(more);
+                }
+                dayCell.appendChild(dots);
+                dayCell.classList.add('compact-tappable');
+                dayCell.addEventListener('click', () => openDaySheet(dateKey));
+            } else {
             gamesData[dateKey].forEach(game => {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item';
@@ -1768,6 +1810,7 @@ gameItem.addEventListener('click', (e) => {
 });
                 dayCell.appendChild(gameItem);
             });
+            }
             // If any game in this day is live, mark the cell so it gets a
             // pulsing green border to draw the user's attention.
             if (dayHasLive) {

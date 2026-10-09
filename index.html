@@ -69,6 +69,17 @@
             <h2 id="detailsTitle">Game Details</h2>
             <div id="detailsContent"></div>
         </div>
+
+        <!-- Mobile compact-month bottom sheet: full game rows for a tapped day -->
+        <div id="daySheet" class="day-sheet hidden" aria-hidden="true">
+            <div class="day-sheet-backdrop"></div>
+            <div class="day-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="daySheetTitle">
+                <div class="day-sheet-handle"></div>
+                <button id="daySheetClose" class="day-sheet-close" type="button" aria-label="Close">&times;</button>
+                <h2 id="daySheetTitle">Games</h2>
+                <div id="daySheetBody"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Floating 'Jump to Today' button - always visible, lets the user
