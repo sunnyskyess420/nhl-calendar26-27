@@ -209,9 +209,37 @@ function renderCalendar(date) {
 
         // Add games for this day
         if (gamesData[dateKey] && gamesData[dateKey].length > 0) {
+            let dayHasLive = false;
             gamesData[dateKey].forEach(game => {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item';
+
+                // Mark scheduled/live games with a state class for styling.
+                const state = game.gameState || game.status.abstractGameState || 'FUT';
+                if (state === 'LIVE' || state === 'CRIT') {
+                    gameItem.classList.add('game-live');
+                    dayHasLive = true;
+                } else if (state === 'PRE') {
+                    gameItem.classList.add('game-pre');
+                } else if (state === 'OFF' || state === 'FINAL') {
+                    gameItem.classList.add('game-final');
+                }
+
+                // For finished games, derive W/L from scores so we can mark
+                // each team's badge. Ties are very rare in modern NHL (only
+                // possible if a game is suspended and never resumed).
+                let awayResult = null;
+                let homeResult = null;
+                if ((state === 'OFF' || state === 'FINAL') &&
+                    game.teams.away.score !== null && game.teams.away.score !== undefined &&
+                    game.teams.home.score !== null && game.teams.home.score !== undefined) {
+                    const aw = Number(game.teams.away.score);
+                    const hm = Number(game.teams.home.score);
+                    if (aw > hm)      { awayResult = 'W'; homeResult = 'L'; }
+                    else if (hm > aw)  { awayResult = 'L'; homeResult = 'W'; }
+                    else               { awayResult = 'T'; homeResult = 'T'; }
+                }
+
 // Create logo elements using static NHL logo URLs
 const awayLogo = document.createElement('img');
 awayLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.away.team.abbreviation}_light.svg`;
@@ -220,6 +248,13 @@ awayLogo.className = 'team-logo';
 const awayAbbr = document.createElement('span');
 awayAbbr.textContent = game.teams.away.team.abbreviation;
 awayAbbr.className = 'team-abbr';
+// Optional W/L badge next to away team abbreviation.
+if (awayResult) {
+    const awayBadge = document.createElement('span');
+    awayBadge.className = `result-badge result-${awayResult.toLowerCase()}`;
+    awayBadge.textContent = awayResult;
+    awayAbbr.appendChild(awayBadge);
+}
 
 const homeLogo = document.createElement('img');
 homeLogo.src = `https://assets.nhle.com/logos/nhl/svg/${game.teams.home.team.abbreviation}_light.svg`;
@@ -228,6 +263,13 @@ homeLogo.className = 'team-logo';
 const homeAbbr = document.createElement('span');
 homeAbbr.textContent = game.teams.home.team.abbreviation;
 homeAbbr.className = 'team-abbr';
+// Optional W/L badge next to home team abbreviation.
+if (homeResult) {
+    const homeBadge = document.createElement('span');
+    homeBadge.className = `result-badge result-${homeResult.toLowerCase()}`;
+    homeBadge.textContent = homeResult;
+    homeAbbr.appendChild(homeBadge);
+}
                 // Text separator
                 const separator = document.createElement('span');
                 separator.textContent = ' @ ';
@@ -243,6 +285,11 @@ gameItem.addEventListener('click', (e) => {
 });
                 dayCell.appendChild(gameItem);
             });
+            // If any game in this day is live, mark the cell so it gets a
+            // pulsing green border to draw the user's attention.
+            if (dayHasLive) {
+                dayCell.classList.add('has-live');
+            }
         }
 
         calendar.appendChild(dayCell);
