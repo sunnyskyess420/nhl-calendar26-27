@@ -816,32 +816,59 @@ gameItem.addEventListener('click', (e) => {
 // Measure each .game-item and set --pill-scale so it fits its container on
 // one line. Called after every renderCalendar() and after a window resize.
 // We use requestAnimationFrame so the layout is settled before we measure.
+// ALSO: team logos load asynchronously, so we re-run after all images in
+// the calendar have loaded - otherwise the initial measurement would see
+// 0-width <img> elements and decide no scaling is needed, then images load
+// and content overflows the pill (clipped by overflow:hidden).
 function fitPillsToCells() {
+    // Reset the images-loaded flag so we wait for the new batch of images
+    // (every render creates new <img> elements with team logos that need
+    // to load before we can accurately measure pill widths).
+    _imagesFitRan = false;
     requestAnimationFrame(() => {
-        const pills = document.querySelectorAll('#calendar .game-item, #weekView .game-item');
-        pills.forEach(pill => {
-            // scrollWidth = the natural width of the content.
-            // clientWidth = the visible width of the pill's container (minus padding).
-            // The pill itself has overflow:hidden + is constrained by the cell width.
-            const sw = pill.scrollWidth;
-            const cw = pill.clientWidth;
-            // Need to account for the pill's own padding in the comparison:
-            // clientWidth includes padding, scrollWidth is content + padding.
-            // So we compare scrollWidth <= clientWidth.
-            if (sw > cw && cw > 0) {
-                // Scale down proportionally. Add 1px breathing room so the
-                // content doesn't touch the right edge of the pill.
-                const scale = (cw - 2) / sw;
-                // Don't scale UP beyond 1.0 (no benefit), only down.
-                // Also clamp to a minimum of 0.5 so the text stays readable.
-                const finalScale = Math.max(0.5, Math.min(1, scale));
-                pill.style.setProperty('--pill-scale', finalScale.toFixed(3));
-            } else {
-                // Fits naturally - reset scale to 1.
-                pill.style.setProperty('--pill-scale', '1');
-            }
-        });
+        _fitPillsOnce();
+        // After images load, re-measure (they may have made pills wider).
+        _refitWhenImagesLoaded();
     });
+}
+
+// Internal: do one pass of measurement + scale-setting.
+function _fitPillsOnce() {
+    const pills = document.querySelectorAll('#calendar .game-item, #weekView .game-item');
+    pills.forEach(pill => {
+        const sw = pill.scrollWidth;
+        const cw = pill.clientWidth;
+        if (sw > cw && cw > 0) {
+            // Scale down proportionally. Add 1px breathing room so the
+            // content doesn't touch the right edge of the pill.
+            const scale = (cw - 2) / sw;
+            // Don't scale UP beyond 1.0 (no benefit), only down.
+            // Also clamp to a minimum of 0.5 so the text stays readable.
+            const finalScale = Math.max(0.5, Math.min(1, scale));
+            pill.style.setProperty('--pill-scale', finalScale.toFixed(3));
+        } else {
+            // Fits naturally - reset scale to 1.
+            pill.style.setProperty('--pill-scale', '1');
+        }
+    });
+}
+
+// Internal: wait for all team logo images to finish loading, then re-fit.
+// Guards against double-running via the _imagesFitRan flag.
+let _imagesFitRan = false;
+function _refitWhenImagesLoaded() {
+    if (_imagesFitRan) return;
+    const imgs = document.querySelectorAll('#calendar .game-item img, #weekView .game-item img');
+    if (imgs.length === 0) return;
+    const allLoaded = Array.from(imgs).every(img => img.complete && img.naturalWidth > 0);
+    if (allLoaded) {
+        _imagesFitRan = true;
+        // Wait one more frame so the browser lays out the loaded images.
+        requestAnimationFrame(_fitPillsOnce);
+    } else {
+        // Some images still loading - retry in 100ms (debounced).
+        setTimeout(_refitWhenImagesLoaded, 100);
+    }
 }
 
 // Close the game-details modal and restore background scrolling.
