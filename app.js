@@ -577,8 +577,10 @@ function renderWeekView() {
                 const sep = document.createElement('span');
                 sep.textContent = ' @ ';
                 gameItem.appendChild(sep);
-                gameItem.appendChild(homeLogo);
+                // Symmetrical layout: away logo | away abbr | @ | home abbr | home logo
+                // Logos frame the matchup on the outer edges, abbreviations grouped around @.
                 gameItem.appendChild(homeAbbr);
+                gameItem.appendChild(homeLogo);
                 gameItem.appendChild(scoreSpan);
 
                 gameItem.addEventListener('click', (e) => {
@@ -780,11 +782,13 @@ if (homeResult === 'W') {
                 const separator = document.createElement('span');
                 separator.textContent = ' @ ';
                 // Append logos and separator
+                // Symmetrical layout: away logo | away abbr | @ | home abbr | home logo
+                // Logos frame the matchup on the outer edges, abbreviations grouped around @.
                 gameItem.appendChild(awayLogo);
 gameItem.appendChild(awayAbbr);
 gameItem.appendChild(separator);
-gameItem.appendChild(homeLogo);
 gameItem.appendChild(homeAbbr);
+gameItem.appendChild(homeLogo);
 gameItem.addEventListener('click', (e) => {
     e.stopPropagation();
     showGameDetails(game);
