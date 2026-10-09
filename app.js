@@ -839,15 +839,26 @@ function _fitPillsOnce() {
         const sw = pill.scrollWidth;
         const cw = pill.clientWidth;
         if (sw > cw && cw > 0) {
-            // Scale down proportionally. Add 1px breathing room so the
-            // content doesn't touch the right edge of the pill.
-            const scale = (cw - 2) / sw;
+            // Scale down proportionally so the FULL content is visible.
+            //
+            // The math: pill has overflow:hidden + width = 100% of cell.
+            // Without intervention, content beyond clientWidth gets clipped.
+            //
+            // We set the pill's width explicitly to its scrollWidth so the
+            // pill itself is wide enough to contain all its content (no
+            // clipping). Then we apply transform: scale(cw/sw) which visually
+            // shrinks the entire pill to fit inside the cell. Because the
+            // pill's own width matches its content, no internal clipping
+            // happens - the user sees the whole pill, just smaller.
+            const scale = cw / sw;
             // Don't scale UP beyond 1.0 (no benefit), only down.
             // Also clamp to a minimum of 0.5 so the text stays readable.
             const finalScale = Math.max(0.5, Math.min(1, scale));
+            pill.style.width = sw + 'px';
             pill.style.setProperty('--pill-scale', finalScale.toFixed(3));
         } else {
-            // Fits naturally - reset scale to 1.
+            // Fits naturally - reset width and scale.
+            pill.style.width = '';
             pill.style.setProperty('--pill-scale', '1');
         }
     });

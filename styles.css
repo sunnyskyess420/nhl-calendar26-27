@@ -324,6 +324,11 @@ h1 {
     border: 2px solid transparent;
     transition: all 0.3s ease;
     cursor: pointer;
+    /* Clip any pill that overflows (after fitPillsToCells sets explicit
+       width = scrollWidth on the pill). The scaled pill should fit inside
+       the cell, but overflow:hidden here is a safety net against any
+       pill that wasn't measured (e.g. images still loading). */
+    overflow: hidden;
 }
 
 .day-cell:hover {
@@ -362,21 +367,13 @@ h1 {
     font-size: 0.85em;
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.2s ease;
-    /* Force ONE LINE per pill - never wrap.
-       The JS in renderCalendar() auto-scales the font-size down to fit the
-       cell width if needed (set via inline style --pill-scale).
-       This gives uniform, single-line pills showing full content
-       (away logo + abbr + W/L badge + @ + home logo + abbr + W/L badge). */
+    /* Force ONE LINE per pill - never wrap. JS fitPillsToCells sets an
+       explicit width = scrollWidth + scale so all content is visible. */
     white-space: nowrap;
-    overflow: hidden;
-    /* Allow shrinking below content size so the pill stays inside the cell.
-       min-width: 0 is critical in flex/grid contexts to override the
-       default 'min-width: auto' which would let content push width. */
+    /* No overflow:hidden here - we want the pill to grow to fit its
+       content (via JS-set width: scrollWidth). The parent .day-cell has
+       overflow:hidden to contain any pill that overflows the cell. */
     min-width: 0;
-    /* Use a CSS var that JS sets to scale the pill content if it overflows.
-       Default is 1.0 (no scaling). When the cell is narrow, JS measures
-       scrollWidth vs clientWidth and sets --pill-scale < 1.0 so the entire
-       pill shrinks proportionally, keeping all content on one line. */
     transform: scale(var(--pill-scale, 1));
     transform-origin: left center;
     line-height: 1.2;
