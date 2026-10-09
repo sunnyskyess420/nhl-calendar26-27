@@ -163,7 +163,7 @@ function renderCalendar(date) {
     const dayNames = isNarrow
         ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
         : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayHeaders.forEach(label => {
+    dayNames.forEach(label => {
         const header = document.createElement('div');
         header.className = 'day-header';
         header.textContent = label;
