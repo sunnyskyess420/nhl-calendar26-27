@@ -6,6 +6,52 @@ const https = require('https');
 const NHL_API_HOST = 'api-web.nhle.com';
 const NHL_TIMEOUT_MS = 12000;
 
+// --------------------------------------------------------------------------
+// Season bounds (module memory cache)
+//
+// /api/schedule?bounds=1 returns the OFFICIAL season dates the NHL publishes
+// alongside every schedule response: preSeasonStartDate, regularSeasonStart/
+// EndDate and playoffEndDate. One upstream fetch per TTL - after that the
+// cached copy is served instantly, so the client can cheaply derive its
+// navigation limits from real data instead of hardcoded constants.
+// --------------------------------------------------------------------------
+const BOUNDS_TTL_MS = 6 * 60 * 60 * 1000;  // 6h
+let _boundsCache = null;
+let _boundsCacheAt = 0;
+
+// 20262027 -> "2026-27"
+function seasonLabelFromId(seasonId) {
+  const s = String(seasonId || '');
+  if (s.length !== 8) return null;
+  return `${s.slice(0, 4)}-${s.slice(6, 8)}`;
+}
+
+async function fetchSeasonBounds() {
+  if (_boundsCache && (Date.now() - _boundsCacheAt) < BOUNDS_TTL_MS) {
+    return _boundsCache;
+  }
+  // Any in-season date returns the same season-wide metadata; today is the
+  // most future-proof probe (also works between seasons).
+  const today = new Date().toISOString().slice(0, 10);
+  const data = await fetchHttps(`/v1/schedule/${today}`);
+  const firstGame = (data.gameWeek && data.gameWeek[0] &&
+                     data.gameWeek[0].games && data.gameWeek[0].games[0]) || null;
+  const bounds = {
+    preSeasonStartDate: data.preSeasonStartDate || null,
+    regularSeasonStartDate: data.regularSeasonStartDate || null,
+    regularSeasonEndDate: data.regularSeasonEndDate || null,
+    playoffEndDate: data.playoffEndDate || null,
+    seasonId: (firstGame && firstGame.season) || null,
+  };
+  bounds.label = seasonLabelFromId(bounds.seasonId);
+  if (!bounds.regularSeasonStartDate || !bounds.playoffEndDate) {
+    throw new Error('season metadata missing from NHL API response');
+  }
+  _boundsCache = bounds;
+  _boundsCacheAt = Date.now();
+  return bounds;
+}
+
 const fetchHttps = async (urlPath) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), NHL_TIMEOUT_MS);
@@ -37,6 +83,19 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
+  }
+
+  // Season bounds mode: official NHL season dates for the current season.
+  if (req.query && (req.query.bounds === '1' || req.query.bounds === 'true')) {
+    try {
+      const bounds = await fetchSeasonBounds();
+      return res.status(200).json({ bounds });
+    } catch (err) {
+      const msg = (err && err.message) || String(err);
+      return res.status(502).json({
+        error: `Could not load season bounds. (${msg})`
+      });
+    }
   }
 
   const yearStr  = (req.query && req.query.year)  || '';

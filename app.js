@@ -6,10 +6,19 @@ let currentDate = new Date();
 let gamesData = [];
 let currentView = 'month';             // 'month' or 'week'
 let currentWeekStart = null;            // Date (first day of displayed week) when in week view
-// Define the allowed hockey season range (2026‑2027)
-// NHL regular season typically runs from early October to early June.
-const SEASON_START = new Date(2026, 9, 1); // Oct 1, 2026 (month is 0‑based)
-const SEASON_END   = new Date(2027, 5, 30); // Jun 30, 2027
+// ============================================================================
+// Season bounds - derived from live NHL schedule data (see initSeasonBounds).
+//
+// The values below are the OFFICIAL 2026-27 dates and act as an instant
+// fallback so the calendar works before (or without) the bounds fetch.
+// They are replaced at runtime by /api/schedule?bounds=1, which returns the
+// season dates published by the NHL (regularSeasonStartDate / playoffEndDate),
+// cached for 24h in localStorage. Never hardcode new dates elsewhere -
+// navigation limits, week-view guards and messages all read these variables.
+// ============================================================================
+let seasonStart = new Date(2026, 8, 29);  // Sep 29, 2026 - regular season start
+let seasonEnd   = new Date(2027, 5, 10);  // Jun 10, 2027 - playoff end date
+let seasonLabel = '2026-27';              // human-readable label for messages
 
 // NHL team brand colors keyed by 3-letter abbreviation.
 // Used to color the calendar game pills: pill background = away team color,
@@ -77,7 +86,74 @@ function hexToRgba(hex, alpha) {
 // Helper: check if a date (first day of its month) is within the allowed season
 function isInSeason(date) {
   const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  return firstOfMonth >= SEASON_START && firstOfMonth <= SEASON_END;
+  return firstOfMonth >= seasonStart && firstOfMonth <= seasonEnd;
+}
+
+// ============================================================================
+// Season bounds derivation (data-driven, replaces hardcoded constants)
+// ============================================================================
+
+const SEASON_BOUNDS_KEY = 'nhl-calendar-season-bounds';  // localStorage key
+const SEASON_BOUNDS_TTL = 24 * 60 * 60 * 1000;           // refresh once a day
+
+// Apply a bounds object from the API (or cache). Returns true if valid.
+// Expected shape: { regularSeasonStartDate, playoffEndDate, label, ... }
+function applySeasonBounds(b) {
+  if (!b || !b.regularSeasonStartDate || !b.playoffEndDate) return false;
+  const s = new Date(b.regularSeasonStartDate + 'T00:00:00');
+  const e = new Date(b.playoffEndDate + 'T23:59:59');
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || s >= e) return false;
+  seasonStart = s;
+  seasonEnd = e;
+  if (b.label) seasonLabel = b.label;
+  return true;
+}
+
+// Re-sync navigation state after bounds change, and retry the current view
+// if it previously errored because it looked out of season (e.g. September,
+// which the old Oct 1 fallback blocked but the real season covers).
+function refreshNavAfterBoundsChange() {
+  updateNavButtons();
+  if (currentView === 'week') updateWeekNavButtons();
+  const errorEl = document.getElementById('error');
+  const errorVisible = errorEl && !errorEl.classList.contains('hidden');
+  if (errorVisible && isInSeason(currentDate)) {
+    loadSchedule(currentDate);
+  }
+}
+
+// Load season bounds: 1) localStorage cache (<24h old), else 2) live fetch
+// from /api/schedule?bounds=1 (NHL-published season dates, server-cached 6h).
+// On failure the built-in fallback dates stay active - never fatal.
+async function initSeasonBounds() {
+  // 1. Fresh cache?
+  try {
+    const raw = localStorage.getItem(SEASON_BOUNDS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.bounds && (Date.now() - parsed.at) < SEASON_BOUNDS_TTL) {
+        if (applySeasonBounds(parsed.bounds)) {
+          refreshNavAfterBoundsChange();
+          return;
+        }
+      }
+    }
+  } catch (_) { /* corrupted cache - fall through to fetch */ }
+
+  // 2. Fetch from our API (which reads the NHL's own published dates).
+  try {
+    const r = await fetch('/api/schedule?bounds=1');
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data && data.bounds && applySeasonBounds(data.bounds)) {
+      try {
+        localStorage.setItem(SEASON_BOUNDS_KEY, JSON.stringify({ bounds: data.bounds, at: Date.now() }));
+      } catch (_) { /* storage full/blocked - bounds still active in memory */ }
+      refreshNavAfterBoundsChange();
+    }
+  } catch (err) {
+    console.warn('Season bounds fetch failed (using fallback dates):', err.message);
+  }
 }
 
 // Enable/disable navigation buttons based on current month
@@ -87,13 +163,15 @@ function updateNavButtons() {
   // Compute month boundaries
   const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
   const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-  prevBtn.disabled = prevMonth < SEASON_START;
-  nextBtn.disabled = nextMonth > SEASON_END;
+  prevBtn.disabled = prevMonth < seasonStart;
+  nextBtn.disabled = nextMonth > seasonEnd;
 }
 document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     setupEventListeners();
     loadSchedule(currentDate);
+    // Derive season bounds from live NHL data (falls back to 2026-27 dates).
+    initSeasonBounds();
     // Kick off the today-strip fetch + start the auto-refresh timer.
     // 30s interval so live scores feel near-real-time without hammering
     // the NHL API (only LIVE/PRE games are refetched in detail; the
@@ -356,8 +434,8 @@ function navigateWeek(direction) {
     // any day of the candidate week is within season, allow it.
     const weekEnd = new Date(candidate);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    const seasonStartDay = new Date(SEASON_START.getFullYear(), SEASON_START.getMonth(), SEASON_START.getDate());
-    const seasonEndDay = new Date(SEASON_END.getFullYear(), SEASON_END.getMonth(), SEASON_END.getDate());
+    const seasonStartDay = new Date(seasonStart.getFullYear(), seasonStart.getMonth(), seasonStart.getDate());
+    const seasonEndDay = new Date(seasonEnd.getFullYear(), seasonEnd.getMonth(), seasonEnd.getDate());
     if (weekEnd < seasonStartDay || candidate > seasonEndDay) return;
 
     currentWeekStart = candidate;
@@ -411,9 +489,9 @@ function setupSwipeNavigation() {
 
 // Load NHL schedule for a specific month via our Vercel API
 async function loadSchedule(date) {
-    // Season guard – only allow dates within Oct 2026 → Jun 2027
+    // Season guard – navigation is limited to the data-derived season bounds.
     if (!isInSeason(date)) {
-        showError('No schedule available – the calendar only covers the 2026‑2027 NHL season.');
+        showError('No schedule available – the calendar only covers the ' + seasonLabel + ' NHL season.');
         document.getElementById('calendar').innerHTML = '';
         showLoading(false);
         updateNavButtons();
@@ -1040,8 +1118,8 @@ function updateWeekNavButtons() {
     const nextBtn = document.getElementById('nextMonth');
     if (!currentWeekStart || !prevBtn || !nextBtn) return;
     const weekEndDate = weekEnd(currentWeekStart);
-    const seasonStartDay = new Date(SEASON_START.getFullYear(), SEASON_START.getMonth(), SEASON_START.getDate());
-    const seasonEndDay = new Date(SEASON_END.getFullYear(), SEASON_END.getMonth(), SEASON_END.getDate());
+    const seasonStartDay = new Date(seasonStart.getFullYear(), seasonStart.getMonth(), seasonStart.getDate());
+    const seasonEndDay = new Date(seasonEnd.getFullYear(), seasonEnd.getMonth(), seasonEnd.getDate());
     prevBtn.disabled = (weekEndDate <= seasonStartDay);
     nextBtn.disabled = (currentWeekStart >= seasonEndDay);
 }
