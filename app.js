@@ -126,7 +126,25 @@ function setupEventListeners() {
     });
 
     document.getElementById('closeDetails').addEventListener('click', () => {
-        document.getElementById('gameDetails').classList.add('hidden');
+        closeGameDetails();
+    });
+
+    // Click outside the modal (on the modal's backdrop area) also closes it.
+    document.getElementById('gameDetails').addEventListener('click', (e) => {
+        // Only close if the click was on the modal container itself, not its children.
+        if (e.target === e.currentTarget) {
+            closeGameDetails();
+        }
+    });
+
+    // ESC key closes the modal.
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('gameDetails');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeGameDetails();
+            }
+        }
     });
 
     // View toggle tabs - switch between Month and Week views.
@@ -783,6 +801,32 @@ gameItem.addEventListener('click', (e) => {
     scrollToToday();
 }
 
+// Close the game-details modal and restore background scrolling.
+function closeGameDetails() {
+    document.getElementById('gameDetails').classList.add('hidden');
+    unlockBodyScroll();
+}
+
+// Lock the body's scroll so the page behind the modal doesn't scroll when
+// the user scrolls inside the popup. Saves the current scroll position so
+// it can be restored on unlock (because position:fixed resets scroll).
+let savedScrollY = 0;
+function lockBodyScroll() {
+    if (document.body.classList.contains('modal-open')) return; // already locked
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add('modal-open');
+    // Set top so the page doesn't jump to the top when position:fixed is applied.
+    document.body.style.top = `-${savedScrollY}px`;
+}
+
+// Restore body scroll and jump back to where the user was before opening the modal.
+function unlockBodyScroll() {
+    if (!document.body.classList.contains('modal-open')) return;
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, savedScrollY);
+}
+
 // Show game details - fetches live detail from /api/game?id=...
 async function showGameDetails(game) {
     const detailsModal = document.getElementById('gameDetails');
@@ -794,6 +838,9 @@ async function showGameDetails(game) {
     // Show loading state immediately so the popup appears responsive.
     detailsContent.innerHTML = '<div class="detail-loading">Loading game details...</div>';
     detailsModal.classList.remove('hidden');
+
+    // Lock the background page so scrolling inside the modal doesn't move the page behind.
+    lockBodyScroll();
 
     // Always render the basic info first (date/time/venue), which we already have.
     const basicHtml = renderBasicGameInfo(game);

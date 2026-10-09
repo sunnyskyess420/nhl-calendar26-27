@@ -792,9 +792,27 @@ h1 {
         padding: 10px;
     }
 
-    /* Belt-and-suspenders against any element causing horizontal scroll */
+    /* Belt-and-suspenders against any element causing horizontal scroll.
+       Use overflow-x: clip (NOT hidden) - 'hidden' would turn body into a
+       scroll container and break position: sticky on .sticky-top, causing
+       the month title + day-of-week row to scroll out of view on mobile.
+       'clip' prevents horizontal scroll without creating a scroll container,
+       so sticky positioning still works. */
     html, body {
-        overflow-x: hidden;
+        overflow-x: clip;
+    }
+
+    /* Lock background scrolling when the game-details modal is open.
+       Without this, scrolling inside the popup also scrolls the page behind
+       it, which feels broken. The .modal-open class is toggled on <body> by
+       showGameDetails() and closeDetails() in app.js. */
+    body.modal-open {
+        overflow: hidden;
+        /* Prevent iOS Safari rubber-band scroll on the body. */
+        position: fixed;
+        width: 100%;
+        /* Remember the scroll position so we can restore it on close. */
+        /* The JS handles save/restore of scrollY. */
     }
 
     /* Compact header: smaller nav buttons, smaller month title */
