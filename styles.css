@@ -48,7 +48,10 @@ header {
    calendar grid so it can stick to the top alongside the month header. */
 .day-headers-row {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    /* minmax(0, 1fr) ensures the header columns can't grow wider than the
+       calendar columns below, so the day-of-week labels stay aligned
+       with the calendar cells even on busy days. */
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 10px;
     padding: 10px 0;
 }
@@ -106,8 +109,16 @@ h1 {
 }
 
 .calendar-grid {
+    /* minmax(0, 1fr) is critical here - plain '1fr' would let cells grow
+       wider than 1/7 of the container if their content (game pills with
+       team logos + abbreviations) doesn't wrap. That caused the calendar
+       grid to overflow horizontally on busy days (e.g. 13 games on a
+       Saturday), which made the day-of-week headers above look misaligned
+       because they stayed at the container width while the cells pushed
+       past it. With minmax(0, 1fr), each column is exactly 1/7 of the
+       container and any overflow is clipped inside the cell. */
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -813,7 +824,7 @@ h1 {
 
     /* Calendar grid: tighter gaps, smaller cells */
     .calendar-grid {
-        grid-template-columns: repeat(7, 1fr);
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 3px;
         margin-bottom: 10px;
     }
