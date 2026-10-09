@@ -793,7 +793,11 @@ h1 {
         margin-left: 0;
         margin-right: 0;
         margin-bottom: 10px;
-        padding: 0 5px;
+        /* No horizontal padding - the day-headers-row inside must align
+           exactly with the calendar-grid below. Previously this was
+           0 5px, which shifted the day-of-week labels 5px to the right
+           of the calendar columns, causing visible misalignment. */
+        padding: 0;
     }
 
     /* Day-of-week row: smaller cells + smaller font */
