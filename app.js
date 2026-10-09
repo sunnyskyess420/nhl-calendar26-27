@@ -545,10 +545,8 @@ function renderWeekView() {
                 awayAbbr.textContent = game.teams.away.team.abbreviation;
                 awayAbbr.className = 'team-abbr';
                 if (awayResult === 'W') {
-                    const badge = document.createElement('span');
-                    badge.className = `result-badge result-${awayResult.toLowerCase()}`;
-                    badge.textContent = awayResult;
-                    awayAbbr.appendChild(badge);
+                    // Highlight winner with a class (no text badge) - takes 0 horizontal space.
+                    awayAbbr.classList.add('winner');
                 }
 
                 const homeLogo = document.createElement('img');
@@ -559,10 +557,7 @@ function renderWeekView() {
                 homeAbbr.textContent = game.teams.home.team.abbreviation;
                 homeAbbr.className = 'team-abbr';
                 if (homeResult === 'W') {
-                    const badge = document.createElement('span');
-                    badge.className = `result-badge result-${homeResult.toLowerCase()}`;
-                    badge.textContent = homeResult;
-                    homeAbbr.appendChild(badge);
+                    homeAbbr.classList.add('winner');
                 }
 
                 // Score (live or final games only).
@@ -765,12 +760,9 @@ awayLogo.className = 'team-logo';
 const awayAbbr = document.createElement('span');
 awayAbbr.textContent = game.teams.away.team.abbreviation;
 awayAbbr.className = 'team-abbr';
-// Optional W badge next to away team abbreviation (only winner, not loser).
+// Highlight winner with a class (no text badge).
 if (awayResult === 'W') {
-    const awayBadge = document.createElement('span');
-    awayBadge.className = `result-badge result-${awayResult.toLowerCase()}`;
-    awayBadge.textContent = awayResult;
-    awayAbbr.appendChild(awayBadge);
+    awayAbbr.classList.add('winner');
 }
 
 const homeLogo = document.createElement('img');
@@ -780,12 +772,9 @@ homeLogo.className = 'team-logo';
 const homeAbbr = document.createElement('span');
 homeAbbr.textContent = game.teams.home.team.abbreviation;
 homeAbbr.className = 'team-abbr';
-// Optional W badge next to home team abbreviation (only winner, not loser).
+// Highlight winner with a class (no text badge).
 if (homeResult === 'W') {
-    const homeBadge = document.createElement('span');
-    homeBadge.className = `result-badge result-${homeResult.toLowerCase()}`;
-    homeBadge.textContent = homeResult;
-    homeAbbr.appendChild(homeBadge);
+    homeAbbr.classList.add('winner');
 }
                 // Text separator
                 const separator = document.createElement('span');
