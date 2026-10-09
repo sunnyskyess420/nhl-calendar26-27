@@ -177,12 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSchedule(currentDate);
     // Derive season bounds from live NHL data (falls back to 2026-27 dates).
     initSeasonBounds();
-    // Kick off the today-strip fetch + start the auto-refresh timer.
-    // 30s interval so live scores feel near-real-time without hammering
-    // the NHL API (only LIVE/PRE games are refetched in detail; the
-    // schedule endpoint is cached per-month).
+    // Kick off the today-strip fetch + start the adaptive refresh loop
+    // (15s while a favorite team's game is live, else 30s — only LIVE/PRE
+    // games are refetched in detail; the schedule endpoint is cached
+    // per-month, so this stays gentle on the NHL API).
     refreshTodayStrip();
-    setInterval(refreshTodayStrip, 30000);  // refresh every 30s
+    // Adaptive loop: 15s while a favorite team's game is live, else 30s.
+    startStripRefreshLoop();
 });
 
 // Register service worker for PWA
@@ -930,6 +931,11 @@ function renderTodayStrip() {
     const chipsRow = document.createElement('div');
     chipsRow.className = 'today-strip-chips';
 
+    // Goal detection FIRST: compares scores against the previous render, so
+    // chips can flash gold and screen readers can announce the new score.
+    const flashedIds = detectGoalFlashes(todaysGames);
+    if (flashedIds.size > 0) announceGoals(flashedIds, todaysGames);
+
     // Favorites first: stable sort keeps chronological order within groups.
     const orderedGames = todaysGames.slice().sort(
         (a, b) => (gameHasFavorite(b) ? 1 : 0) - (gameHasFavorite(a) ? 1 : 0)
@@ -947,6 +953,9 @@ function renderTodayStrip() {
         const state = game.gameState || game.status.abstractGameState || 'FUT';
         if (state === 'LIVE' || state === 'CRIT') {
             chip.classList.add('live');
+            if (flashedIds.has(String(game.gamePk))) {
+                chip.classList.add('goal-flash');
+            }
         } else if (state === 'OFF' || state === 'FINAL') {
             chip.classList.add('final');
         } else if (state === 'PRE') {
@@ -1028,11 +1037,123 @@ function renderTodayStrip() {
         chip.appendChild(homeAbbr);
         chip.appendChild(homeLogo);
 
+        // Period + clock badge for live games (merged from /api/game detail)
+        // plus a full-state label for screen readers.
+        if (state === 'LIVE' || state === 'CRIT') {
+            const badgeText = liveBadgeText(game);
+            if (badgeText) {
+                const badge = document.createElement('span');
+                badge.className = 'chip-live-badge';
+                badge.textContent = badgeText;
+                chip.appendChild(badge);
+            }
+            chip.setAttribute('aria-label', liveAriaLabel(game));
+        }
+
         chip.addEventListener('click', () => showGameDetails(game));
         chipsRow.appendChild(chip);
     });
 
     strip.appendChild(chipsRow);
+}
+
+// --------------------------------------------------------------------------
+// Live mode polish: adaptive refresh, period+clock badges, goal flash,
+// screen-reader announcements.
+// --------------------------------------------------------------------------
+
+// Adaptive refresh loop for the today strip: 15s while a FAVORITE team's
+// game is live (scores feel near-real-time), 30s otherwise. Re-evaluated
+// after every cycle since game states change.
+let _stripRefreshTimer = null;
+function startStripRefreshLoop() {
+    if (_stripRefreshTimer) clearTimeout(_stripRefreshTimer);
+    _stripRefreshTimer = setTimeout(async () => {
+        await refreshTodayStrip();
+        startStripRefreshLoop();
+    }, liveFavoriteGameToday() ? 15000 : 30000);
+}
+
+// True when one of the user's favorite teams is playing right now.
+function liveFavoriteGameToday() {
+    const todayKey = localDateKey(new Date());
+    const games = (gamesData && gamesData[todayKey]) || [];
+    return games.some(g => {
+        const state = g.gameState || g.status.abstractGameState || 'FUT';
+        return (state === 'LIVE' || state === 'CRIT') && gameHasFavorite(g);
+    });
+}
+
+// Build "1st 08:32" style text from a game's merged period/clock data
+// (populated by refreshLiveTodayGames from /api/game detail).
+function liveBadgeText(game) {
+    const period = game.period;
+    const clock = game.clock;
+    if (!period || !period.number || !clock || !clock.timeRemaining) return '';
+    return formatPeriodLabel(period.number, period.periodType) + ' ' + clock.timeRemaining;
+}
+
+// Screen-reader description of a live chip's full state.
+function liveAriaLabel(game) {
+    const a = game.teams.away.team.abbreviation;
+    const h = game.teams.home.team.abbreviation;
+    const aw = game.teams.away.score;
+    const hm = game.teams.home.score;
+    let label = `${a} at ${h}, live`;
+    if (aw !== null && aw !== undefined && hm !== null && hm !== undefined) {
+        label += `, ${aw} to ${hm}`;
+    }
+    const badge = liveBadgeText(game);
+    if (badge) label += `, ${badge} remaining`;
+    return label;
+}
+
+// Goal-flash bookkeeping: gamePk -> 'aw-hm' as of the last strip render.
+// A score INCREASE between renders means a goal happened - the chip gets a
+// gold flash and screen readers get an announcement.
+const _lastChipScores = {};
+
+function detectGoalFlashes(todaysGames) {
+    const flashed = new Set();
+    todaysGames.forEach(g => {
+        const id = String(g.gamePk || '');
+        if (!id) return;
+        const aw = g.teams.away.score;
+        const hm = g.teams.home.score;
+        if (aw === null || aw === undefined || hm === null || hm === undefined) return;
+        const key = `${aw}-${hm}`;
+        const prev = _lastChipScores[id];
+        if (prev && prev !== key) {
+            const parts = prev.split('-');
+            if ((aw > Number(parts[0])) || (hm > Number(parts[1]))) {
+                flashed.add(id);
+            }
+        }
+        _lastChipScores[id] = key;
+    });
+    return flashed;
+}
+
+// Announce goal flashes via the polite aria-live region.
+function announceGoals(flashedIds, todaysGames) {
+    const region = document.getElementById('liveAnnouncer');
+    if (!region || flashedIds.size === 0) return;
+    const lines = [];
+    todaysGames.forEach(g => {
+        if (!flashedIds.has(String(g.gamePk))) return;
+        const a = g.teams.away.team.abbreviation;
+        const h = g.teams.home.team.abbreviation;
+        const badge = liveBadgeText(g);
+        lines.push(
+            `Goal in the ${a} at ${h} game. New score ` +
+            `${g.teams.away.score} to ${g.teams.home.score}` +
+            (badge ? `, ${badge}` : '') + '.'
+        );
+    });
+    if (lines.length === 0) return;
+    // Clear first so identical consecutive messages still announce.
+    region.textContent = '';
+    window.setTimeout(() => { region.textContent = lines.join(' '); }, 50);
 }
 
 // Load NHL schedule for a 7-day window starting at `weekStart`.
@@ -1232,6 +1353,12 @@ function renderWeekView() {
                 scoreSpan.className = 'week-game-score';
                 if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
                     scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
+                    // Live games show period + clock inline (data merged by
+                    // refreshLiveTodayGames; applied on the next render).
+                    if (state === 'LIVE' || state === 'CRIT') {
+                        const badge = liveBadgeText(game);
+                        if (badge) scoreSpan.textContent += ' · ' + badge;
+                    }
                 } else {
                     // Show game time for scheduled games.
                     const gd = new Date(game.gameDate);
@@ -1443,6 +1570,10 @@ function renderMyTeamsView() {
             scoreSpan.className = 'week-game-score';
             if (game.teams.away.score !== null && game.teams.away.score !== undefined) {
                 scoreSpan.textContent = `${game.teams.away.score} - ${game.teams.home.score}`;
+                if (state === 'LIVE' || state === 'CRIT') {
+                    const badge = liveBadgeText(game);
+                    if (badge) scoreSpan.textContent += ' · ' + badge;
+                }
             } else {
                 const gd = new Date(game.gameDate);
                 scoreSpan.textContent = gd.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
