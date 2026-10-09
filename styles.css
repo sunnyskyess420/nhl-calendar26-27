@@ -1386,3 +1386,66 @@ h1 {
         border-radius: 50%;  /* circular on tiny screens */
     }
 }
+
+/* ============================================================================
+   Favorite teams - gold glow border on calendar pills + today-strip chips
+   + star button styling in the game detail modal.
+   ============================================================================ */
+
+/* Gold glow on calendar pills + week-view pills containing a favorite team.
+   Distinct from the green live-game pulse and the green winner highlight.
+   Uses a bright gold border + soft outer glow + subtle inner glow. */
+.game-item.favorite,
+.today-chip.favorite {
+    border: 2px solid #ffd700 !important;
+    box-shadow:
+        0 0 8px rgba(255, 215, 0, 0.6),
+        inset 0 0 4px rgba(255, 215, 0, 0.15);
+}
+
+/* Make sure the home-color left stripe still shows on favorite pills
+   (the gold border surrounds it; the stripe is interior). */
+.game-item.favorite {
+    border-left: 3px solid var(--home-color, #e31837) !important;
+    border-top: 2px solid #ffd700 !important;
+    border-right: 2px solid #ffd700 !important;
+    border-bottom: 2px solid #ffd700 !important;
+}
+
+/* Star button (in the game detail modal) - inline next to team name. */
+.star-btn {
+    display: inline-block;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    color: #888;
+    font-size: 1em;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    vertical-align: middle;
+}
+
+.star-btn:hover {
+    color: #ffd700;
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.1);
+    transform: scale(1.1);
+}
+
+.star-btn.starred {
+    color: #ffd700;
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.15);
+    text-shadow: 0 0 4px rgba(255, 215, 0, 0.8);
+}
+
+.star-btn.starred:hover {
+    /* Indicate that clicking will un-favorite. */
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+    text-shadow: none;
+}

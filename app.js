@@ -439,6 +439,76 @@ function processScheduleData(data) {
 }
 
 // ============================================================================
+// Favorite teams - stored in localStorage, highlighted with gold glow
+// on calendar pills + today-strip chips. Star toggle in the modal.
+// ============================================================================
+
+const FAVORITES_KEY = 'nhl-calendar-favorites';  // localStorage key
+
+// Load favorites from localStorage. Returns a Set of team abbreviations.
+function loadFavorites() {
+    try {
+        const raw = localStorage.getItem(FAVORITES_KEY);
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? new Set(arr) : new Set();
+    } catch (err) {
+        console.warn('Could not load favorites:', err.message);
+        return new Set();
+    }
+}
+
+// Save favorites to localStorage. Accepts a Set.
+function saveFavorites(favSet) {
+    try {
+        const arr = Array.from(favSet);
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(arr));
+    } catch (err) {
+        console.warn('Could not save favorites:', err.message);
+    }
+}
+
+// Returns true if the given team abbreviation is in the user's favorites.
+function isFavoriteTeam(abbrev) {
+    return _favorites.has(abbrev);
+}
+
+// Toggle a team's favorite state. Returns the new state (true = now favorite).
+function toggleFavorite(abbrev) {
+    if (_favorites.has(abbrev)) {
+        _favorites.delete(abbrev);
+        saveFavorites(_favorites);
+        return false;
+    } else {
+        _favorites.add(abbrev);
+        saveFavorites(_favorites);
+        return true;
+    }
+}
+
+// Initialize favorites on script load.
+const _favorites = loadFavorites();
+
+// Returns true if any team in the given game is a favorite.
+function gameHasFavorite(game) {
+    if (!game || !game.teams) return false;
+    return isFavoriteTeam(game.teams.away.team.abbreviation) ||
+           isFavoriteTeam(game.teams.home.team.abbreviation);
+}
+
+// Re-render both the calendar and today strip after favorites change,
+// so the gold border highlight appears immediately. Cheap operation
+// since it's pure DOM (no refetch).
+function refreshAfterFavoritesChange() {
+    if (currentView === 'week') {
+        renderWeekView();
+    } else {
+        renderCalendar(currentDate);
+    }
+    renderTodayStrip();
+}
+
+// ============================================================================
 // "Today's games" strip - horizontal scrollable row at the top of the page
 // showing today's games with live scores. Auto-refreshes every 60 seconds.
 // ============================================================================
@@ -581,6 +651,11 @@ function renderTodayStrip() {
     todaysGames.forEach(game => {
         const chip = document.createElement('div');
         chip.className = 'today-chip';
+
+        // If any team is a favorite, add a gold border class.
+        if (gameHasFavorite(game)) {
+            chip.classList.add('favorite');
+        }
 
         const state = game.gameState || game.status.abstractGameState || 'FUT';
         if (state === 'LIVE' || state === 'CRIT') {
@@ -803,6 +878,11 @@ function renderWeekView() {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item week-game-item';
 
+                // If any team in this game is a favorite, add a gold border class.
+                if (gameHasFavorite(game)) {
+                    gameItem.classList.add('favorite');
+                }
+
                 const state = game.gameState || game.status.abstractGameState || 'FUT';
                 if (state === 'LIVE' || state === 'CRIT') {
                     gameItem.classList.add('game-live');
@@ -1001,6 +1081,11 @@ function renderCalendar(date) {
             gamesData[dateKey].forEach(game => {
                 const gameItem = document.createElement('div');
                 gameItem.className = 'game-item';
+
+                // If any team in this game is a favorite, add a gold border class.
+                if (gameHasFavorite(game)) {
+                    gameItem.classList.add('favorite');
+                }
 
                 // Mark scheduled/live games with a state class for styling.
                 const state = game.gameState || game.status.abstractGameState || 'FUT';
@@ -1297,11 +1382,17 @@ function renderBasicGameInfo(game) {
         </div>
         <div class="detail-row">
             <span class="detail-label">Away:</span>
-            <span class="detail-value">${escapeHtml(game.teams.away.team.name)} (${escapeHtml(game.teams.away.team.abbreviation)})</span>
+            <span class="detail-value">
+                ${escapeHtml(game.teams.away.team.name)} (${escapeHtml(game.teams.away.team.abbreviation)})
+                <button class="star-btn ${isFavoriteTeam(game.teams.away.team.abbreviation) ? 'starred' : ''}" data-team="${escapeHtml(game.teams.away.team.abbreviation)}" type="button" aria-label="Toggle favorite for ${escapeHtml(game.teams.away.team.abbreviation)}" title="Toggle favorite">${isFavoriteTeam(game.teams.away.team.abbreviation) ? '★' : '☆'}</button>
+            </span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Home:</span>
-            <span class="detail-value">${escapeHtml(game.teams.home.team.name)} (${escapeHtml(game.teams.home.team.abbreviation)})</span>
+            <span class="detail-value">
+                ${escapeHtml(game.teams.home.team.name)} (${escapeHtml(game.teams.home.team.abbreviation)})
+                <button class="star-btn ${isFavoriteTeam(game.teams.home.team.abbreviation) ? 'starred' : ''}" data-team="${escapeHtml(game.teams.home.team.abbreviation)}" type="button" aria-label="Toggle favorite for ${escapeHtml(game.teams.home.team.abbreviation)}" title="Toggle favorite">${isFavoriteTeam(game.teams.home.team.abbreviation) ? '★' : '☆'}</button>
+            </span>
         </div>
     `;
 }
@@ -1493,6 +1584,22 @@ function attachDetailHandlers(game, detail) {
             updateWatchStatus('Watching for goals - notifications enabled.');
         }
     }
+
+    // Star buttons - toggle favorite state for each team.
+    const starBtns = document.querySelectorAll('.star-btn');
+    starBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const team = btn.getAttribute('data-team');
+            if (!team) return;
+            const nowFav = toggleFavorite(team);
+            // Update the button's visual state immediately.
+            btn.classList.toggle('starred', nowFav);
+            btn.textContent = nowFav ? '★' : '☆';
+            // Re-render calendar + today strip so gold border appears/disappears.
+            refreshAfterFavoritesChange();
+        });
+    });
 }
 
 function updateWatchStatus(msg) {
