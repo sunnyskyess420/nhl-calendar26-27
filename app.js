@@ -1009,12 +1009,16 @@ function renderWeekView() {
         weekView.appendChild(card);
     }
 
-    // Auto-scroll the page so today's card is in view (not the sticky header).
+    // Auto-scroll: if today's card is in this week, scroll to it; else scroll to top.
     const todayCard = weekView.querySelector('.week-day-card.is-today');
     if (todayCard) {
         requestAnimationFrame(() => {
             todayCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
+    } else {
+        // Today isn't in this week - scroll to top of page so user sees the
+        // start of the week, not a random scroll position.
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // Auto-shrink pills to fit (week-view pills are wider so usually don't
@@ -1794,13 +1798,18 @@ function hideError() {
 }
 
 // Auto-scroll the calendar to today's cell.
-// No-op if today isn't in the current month (no .today cell exists).
+// If today isn't in the current month (e.g. user navigated to November),
+// scroll to the top of the page so they see the start of the month rather
+// than a random scroll position left over from the previous month.
 function scrollToToday() {
     const todayCell = document.querySelector('.day-cell.today');
     if (todayCell) {
-        // Wait one frame so layout settles before scrolling.
+        // Today is in the displayed month - scroll to it.
         requestAnimationFrame(() => {
             todayCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
+    } else {
+        // Today isn't in this month - scroll to top of page.
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
