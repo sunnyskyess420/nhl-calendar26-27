@@ -502,7 +502,7 @@ function standingsRows(teams, rankOffset) {
         const rank = rankOf.get(t.abbrev);
         return (
             `<tr class="${fav.trim()}" data-team="${t.abbrev}">` +
-            `<td class="st-rank">${rank}${wcBadge}</td>` +
+            `<td class="st-rank">${wcBadge}${rank}</td>` +
             `<td class="st-team" title="${t.name} — ${t.division} (${t.conference})">${t.abbrev}</td>` +
             `<td class="st-num">${t.gamesPlayed}</td>` +
             `<td class="st-num">${t.wins}</td>` +

@@ -1883,8 +1883,14 @@ h1 {
 }
 }
 
-/* Rank + team columns hug the left edge, everything else right-aligns. */
+/* Team column hugs the left edge, all numeric columns (incl. rank)
+   right-align so digits stack in a clean vertical line. The WC badge
+   renders LEFT of the rank (see standingsRows) and never moves it. */
 .standings-table .st-rank,
+.standings-table .st-num {
+    text-align: right;
+}
+
 .standings-table .st-team {
     text-align: left;
 }
@@ -1924,7 +1930,7 @@ h1 {
 
 .wc-badge {
     display: inline-block;
-    margin-left: 4px;
+    margin-right: 4px; /* sits left of the rank digit, never shifts it */
     padding: 1px 5px;
     border-radius: 6px;
     font-size: 0.7em;
