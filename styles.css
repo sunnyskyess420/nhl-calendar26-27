@@ -1833,10 +1833,14 @@ h1 {
 
 .standings-table {
     width: 100%;
-    border-collapse: collapse;
+    /* Chrome won't honor position:sticky headers in a table that uses
+       border-collapse: collapse (or clips via overflow: hidden) — the
+       header ends up floating mid-scroll instead of pinning. Separate
+       borders + per-cell corner radii keep the look AND stickiness. */
+    border-collapse: separate;
+    border-spacing: 0;
     background: rgba(255, 255, 255, 0.04);
     border-radius: 12px;
-    overflow: hidden;
     font-size: 0.95em;
 }
 
@@ -1858,7 +1862,25 @@ h1 {
     color: rgba(255, 255, 255, 0.8);
     /* A shadow under the pinned bar separates it from rows flying by. */
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
-    clip-path: inset(0 0 -8px 0); /* keep the shadow from painting on top of the grouping bar above */
+}
+
+/* Rounded corners previously done with table-level overflow: hidden;
+   repaint them on the corner cells so the look is identical. */
+.standings-table thead th:first-child {
+    border-top-left-radius: 12px;
+}
+
+.standings-table thead th:last-child {
+    border-top-right-radius: 12px;
+}
+
+.standings-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 12px;
+}
+
+.standings-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 12px;
+}
 }
 
 /* Rank + team columns hug the left edge, everything else right-aligns. */
