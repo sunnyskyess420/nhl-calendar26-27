@@ -4,7 +4,7 @@
 
 let currentDate = new Date();
 let gamesData = [];
-let currentView = 'month';             // 'month' or 'week'
+let currentView = 'month';             // 'month', 'week', 'myteams' or 'standings'
 let currentWeekStart = null;            // Date (first day of displayed week) when in week view
 let initialTodayScrollDone = false;
 // ============================================================================
@@ -277,6 +277,7 @@ function setupEventListeners() {
     document.getElementById('viewMonth').addEventListener('click', () => setView('month'));
     document.getElementById('viewWeek').addEventListener('click', () => setView('week'));
     document.getElementById('viewMyTeams').addEventListener('click', () => setView('myteams'));
+    document.getElementById('viewStandings').addEventListener('click', () => setView('standings'));
 
     // Re-render calendar when viewport crosses the narrow breakpoint so the
     // day-of-week labels switch between 'Sun' and 'S' as the user resizes
@@ -287,6 +288,7 @@ function setupEventListeners() {
         if (gamesData && Object.keys(gamesData).length > 0) {
             if (currentView === 'week') renderWeekView();
             else if (currentView === 'myteams') renderMyTeamsView();
+            else if (currentView === 'standings') renderStandings();
             else                          renderCalendar(currentDate);
         }
     };
@@ -342,11 +344,13 @@ function setView(view) {
     document.getElementById('viewMonth').classList.toggle('active', view === 'month');
     document.getElementById('viewWeek').classList.toggle('active', view === 'week');
     document.getElementById('viewMyTeams').classList.toggle('active', view === 'myteams');
+    document.getElementById('viewStandings').classList.toggle('active', view === 'standings');
 
     // Show/hide the appropriate container.
     document.getElementById('calendar').classList.toggle('hidden', view !== 'month');
     document.getElementById('weekView').classList.toggle('hidden', view !== 'week');
     document.getElementById('myTeamsView').classList.toggle('hidden', view !== 'myteams');
+    document.getElementById('standingsView').classList.toggle('hidden', view !== 'standings');
     // The day-of-week row (Sun Mon Tue...) only makes sense in month view.
     document.getElementById('dayHeaders').classList.toggle('hidden', view !== 'month');
 
@@ -362,6 +366,8 @@ function setView(view) {
         } else {
             loadSchedule(currentDate);
         }
+    } else if (view === 'standings') {
+        loadStandings();
     } else {
         renderCalendar(currentDate);
         updateNavButtons();
@@ -385,6 +391,183 @@ function getTodayWeekStart() {
     const t = new Date();
     return new Date(t.getFullYear(), t.getMonth(), t.getDate() - 3);
 }
+
+// ============================================================================
+// Standings tab — league / division / wild-card tables from /api/standings
+// ============================================================================
+
+let standingsData = null;                // last good /api/standings payload
+let standingsGroup = 'league';           // 'league' | 'divisions' | 'wildcards'
+let standingsSort = null;                // null = natural ranked order; else {key, dir}
+
+// Fetch the standings (whenever NULL or the caller forces a refresh) and
+// (re)render the tab. Shows an inline error instead of touching the
+// calendar's global showError box.
+async function loadStandings(force) {
+    const container = document.getElementById('standingsView');
+
+    if (standingsData && !force) {
+        renderStandings();
+        return;
+    }
+
+    container.innerHTML = '<div class="standings-loading">Loading standings…</div>';
+
+    try {
+        const response = await fetch('/api/standings');
+        if (!response.ok) {
+            let msg = `Server returned ${response.status}`;
+            try {
+                const errBody = await response.json();
+                if (errBody && errBody.error) msg = errBody.error;
+            } catch (_) {}
+            throw new Error(msg);
+        }
+        standingsData = await response.json();
+        renderStandings();
+    } catch (error) {
+        console.error('Error loading standings:', error);
+        container.innerHTML =
+            '<div class="standings-error">Could not load NHL standings. ' +
+            'The site may be updating — try again in a minute.<br>Details: ' +
+            String(error.message || error).replace(/</g, '&lt;') + '</div>';
+    }
+}
+
+// Streak text, e.g. 'W3' / 'L2' / 'OT1'. Empty streak renders a dash.
+function standingsStreakText(team) {
+    if (!team.streakCode || !team.streakCount) return '—';
+    const label = team.streakCode === 'O' ? 'OT' : team.streakCode;
+    return label + team.streakCount;
+}
+
+// Signed goal differential, e.g. '+15' / '-4'.
+function standingsDiffText(team) {
+    return (team.goalDifferential > 0 ? '+' : '') + team.goalDifferential;
+}
+
+// Columns for the standings table. key=null means the Rank column (natural
+// order). Numeric keys sort numerically, 'team' alphabetically.
+const STANDINGS_COLUMNS = [
+    { key: null,          label: '#',            cls: 'st-rank' },
+    { key: 'team',        label: 'Team',         cls: 'st-team' },
+    { key: 'gamesPlayed', label: 'GP',           cls: 'st-num' },
+    { key: 'wins',        label: 'W',            cls: 'st-num' },
+    { key: 'losses',      label: 'L',            cls: 'st-num' },
+    { key: 'otLosses',    label: 'OTL',          cls: 'st-num' },
+    { key: 'points',      label: 'PTS',          cls: 'st-num st-pts' },
+    { key: 'goalDifferential', label: 'GD',      cls: 'st-num' },
+    { key: 'streak',      label: 'Strk',         cls: 'st-num' },
+    { key: 'last10',      label: 'L10',          cls: 'st-num' },
+];
+
+// Build <th> row for the table, marking the currently sorted column.
+function standingsHeadRow() {
+    return '<tr>' + STANDINGS_COLUMNS.map(col => {
+        if (!col.key) return `<th class="${col.cls}" aria-label="rank">#</th>`;
+        const active = standingsSort && standingsSort.key === col.key;
+        const arrow = active ? (standingsSort.dir === 1 ? ' ▲' : ' ▼') : '';
+        return `<th class="${col.cls} sortable" data-sort="${col.key}" title="Sort by ${col.label}">${col.label}${arrow}</th>`;
+    }).join('') + '</tr>';
+}
+
+// Build <tr> rows for a ranked list of teams. `rankOffset` positions the
+// first row (used to continue ranking across wild-card pools).
+function standingsRows(teams, rankOffset) {
+    const offset = rankOffset || 0;
+    let rows;
+    if (standingsSort) {
+        const { key, dir } = standingsSort;
+        rows = [...teams].sort((a, b) => {
+            if (key === 'team') return dir * a.name.localeCompare(b.name);
+            if (key === 'streak') return dir * (standingsStreakText(b).localeCompare(standingsStreakText(a)));
+            if (key === 'last10') return dir * (b.last10.localeCompare(a.last10));
+            return dir * ((b[key] || 0) - (a[key] || 0));
+        });
+    } else {
+        rows = teams;
+    }
+
+    return rows.map((t, i) => {
+        const fav = _favorites.has(t.abbrev) ? ' standings-fav' : '';
+        const wcBadge = t.inWildcardSpot ? '<span class="wc-badge">WC</span>' : '';
+        const rank = standingsSort ? '' : String(offset + i + 1);
+        return (
+            `<tr class="${fav.trim()}" data-team="${t.abbrev}">` +
+            `<td class="st-rank">${rank}${wcBadge}</td>` +
+            `<td class="st-team" title="${t.name} — ${t.division} (${t.conference})">${t.abbrev}</td>` +
+            `<td class="st-num">${t.gamesPlayed}</td>` +
+            `<td class="st-num">${t.wins}</td>` +
+            `<td class="st-num">${t.losses}</td>` +
+            `<td class="st-num">${t.otLosses}</td>` +
+            `<td class="st-num st-pts"><strong>${t.points}</strong></td>` +
+            `<td class="st-num">${standingsDiffText(t)}</td>` +
+            `<td class="st-num">${standingsStreakText(t)}</td>` +
+            `<td class="st-num">${t.last10}</td>` +
+            '</tr>'
+        );
+    }).join('');
+}
+
+// Render the whole tab: grouping selector + one or more tables.
+function renderStandings() {
+    if (!standingsData) return;
+    const container = document.getElementById('standingsView');
+
+    const groups = {
+        league: '<h3 class="standings-subtitle">League</h3>' +
+                `<table class="standings-table"><thead>${standingsHeadRow()}</thead><tbody>${standingsRows(standingsData.league, 0)}</tbody></table>`,
+        divisions: Object.keys(standingsData.divisions).map(div =>
+            `<h3 class="standings-subtitle">${div}</h3>` +
+            `<table class="standings-table"><thead>${standingsHeadRow()}</thead><tbody>${standingsRows(standingsData.divisions[div], 0)}</tbody></table>`
+        ).join(''),
+        wildcards: Object.keys(standingsData.wildcards).map(conf =>
+            `<h3 class="standings-subtitle">${conf} Conference</h3>` +
+            `<table class="standings-table"><thead>${standingsHeadRow()}</thead><tbody>${standingsRows(standingsData.wildcards[conf], 0)}</tbody></table>`
+        ).join(''),
+    };
+
+    const updated = standingsData.standingsDateTimeUtc
+        ? new Date(standingsData.standingsDateTimeUtc).toLocaleString()
+        : '';
+
+    container.innerHTML =
+        '<div class="standings-header">' +
+        '<div class="standings-controls">' +
+        ['league|League', 'divisions|By Division', 'wildcards|Wild Card'].map(opt => {
+            const [val, label] = opt.split('|');
+            return `<button type="button" class="standings-group-btn ${standingsGroup === val ? 'active' : ''}" data-group="${val}">${label}</button>`;
+        }).join('') +
+        '</div>' +
+        (updated ? `<div class="standings-updated">Updated ${updated}</div>` : '') +
+        '</div>' +
+        groups[standingsGroup];
+}
+
+// Group buttons + sortable column headers (event delegation on the container).
+document.getElementById('standingsView').addEventListener('click', (e) => {
+    const groupBtn = e.target.closest('.standings-group-btn');
+    if (groupBtn) {
+        standingsGroup = groupBtn.dataset.group;
+        standingsSort = null; // back to natural ranked order in the new grouping
+        renderStandings();
+        return;
+    }
+    const sortTh = e.target.closest('th.sortable');
+    if (sortTh) {
+        const key = sortTh.dataset.sort;
+        if (standingsSort && standingsSort.key === key) {
+            standingsSort = { key, dir: -standingsSort.dir };
+        } else {
+            // First click: ascending for the team name, descending (best first)
+            // for every numeric stat.
+            standingsSort = { key, dir: key === 'team' ? 1 : -1 };
+        }
+        renderStandings();
+    }
+});
+
+
 
 // Jump to today's date from anywhere in the calendar.
 // - In month view: sets currentDate to today, loads that month, scrolls to today's cell.
@@ -594,6 +777,9 @@ async function loadSchedule(date) {
             if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
             const scrollToTodayTop = () => {
+                // If the user has already switched to another view in the first
+                // second, don't yank the page back to a calendar cell.
+                if (currentView !== 'month' && currentView !== 'week') return;
                 const todayEl =
                     currentView === 'week'
                         ? document.querySelector('.week-day-card.is-today')
