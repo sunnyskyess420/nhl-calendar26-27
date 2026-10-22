@@ -467,7 +467,7 @@ function standingsHeadRow() {
         if (!col.key) return `<th class="${col.cls}" aria-label="rank">#</th>`;
         const active = standingsSort && standingsSort.key === col.key;
         const arrow = active ? (standingsSort.dir === 1 ? ' ▲' : ' ▼') : '';
-        return `<th class="${col.cls} sortable" data-sort="${col.key}" title="Sort by ${col.label}">${col.label}${arrow}</th>`;
+        return `<th class="${col.cls} sortable${active ? ' sorted' : ''}" data-sort="${col.key}" title="Sort by ${col.label}">${col.label}${arrow}</th>`;
     }).join('') + '</tr>';
 }
 

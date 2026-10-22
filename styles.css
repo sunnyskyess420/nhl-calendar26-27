@@ -1856,6 +1856,9 @@ h1 {
     background: #202036; /* opaque stand-in for the table's translucent bg */
     font-size: 0.85em;
     color: rgba(255, 255, 255, 0.8);
+    /* A shadow under the pinned bar separates it from rows flying by. */
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+    clip-path: inset(0 0 -8px 0); /* keep the shadow from painting on top of the grouping bar above */
 }
 
 /* Rank + team columns hug the left edge, everything else right-aligns. */
@@ -1868,14 +1871,22 @@ h1 {
     border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Column headers sort on click. */
+/* Column headers sort on click. Hover + sorted stay OPAQUE — a translucent
+   highlight here lets numbers from the rows underneath bleed through the
+   pinned header while scrolling. */
 .standings-table th.sortable {
     cursor: pointer;
     user-select: none;
 }
 
 .standings-table th.sortable:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: #2b2b46;
+}
+
+/* The column being sorted gets a brighter bar so it's obvious which one. */
+.standings-table thead th.sorted {
+    background: #34345a;
+    color: #ffffff;
 }
 
 /* Zebra stripes for readability across 32 rows. */
