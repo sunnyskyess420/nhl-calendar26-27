@@ -6,6 +6,7 @@ let currentDate = new Date();
 let gamesData = [];
 let currentView = 'month';             // 'month' or 'week'
 let currentWeekStart = null;            // Date (first day of displayed week) when in week view
+let initialTodayScrollDone = false;
 // ============================================================================
 // Season bounds - derived from live NHL schedule data (see initSeasonBounds).
 //
@@ -581,6 +582,31 @@ async function loadSchedule(date) {
             renderMyTeamsView();
         } else {
             renderCalendar(date);
+        }
+        // On first page load, position the view at the top of today's cell
+        // rather than leaving the page scrolled down toward the games list.
+        if (!initialTodayScrollDone) {
+            initialTodayScrollDone = true;
+
+            requestAnimationFrame(() => {
+                const todayEl =
+                    currentView === 'week'
+                        ? document.querySelector('.week-day-card.is-today')
+                        : document.querySelector('.day-cell.today');
+
+                if (todayEl) {
+                    const headerOffset = 160; // matches the sticky-header allowance used elsewhere
+                    const top =
+                        todayEl.getBoundingClientRect().top +
+                        window.pageYOffset -
+                        headerOffset;
+
+                    window.scrollTo({
+                        top: Math.max(0, top),
+                        behavior: 'auto'
+                    });
+                }
+            });
         }
         // If today happens to be in the month we just loaded, the today strip
         // can use gamesData directly. Otherwise refreshTodayStrip will fetch
