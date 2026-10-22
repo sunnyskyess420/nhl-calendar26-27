@@ -449,7 +449,7 @@ function standingsDiffText(team) {
 // Columns for the standings table. key=null means the Rank column (natural
 // order). Numeric keys sort numerically, 'team' alphabetically.
 const STANDINGS_COLUMNS = [
-    { key: null,          label: '#',            cls: 'st-rank' },
+    { key: null,          label: '#',            cls: 'st-rank', title: 'Official rank in this grouping (stays, even when sorting)' },
     { key: 'team',        label: 'Team',         cls: 'st-team' },
     { key: 'gamesPlayed', label: 'GP',           cls: 'st-num' },
     { key: 'wins',        label: 'W',            cls: 'st-num' },
@@ -464,7 +464,7 @@ const STANDINGS_COLUMNS = [
 // Build <th> row for the table, marking the currently sorted column.
 function standingsHeadRow() {
     return '<tr>' + STANDINGS_COLUMNS.map(col => {
-        if (!col.key) return `<th class="${col.cls}" aria-label="rank">#</th>`;
+        if (!col.key) return `<th class="${col.cls}" ${col.title ? `title="${col.title}"` : ''} aria-label="rank">#</th>`;
         const active = standingsSort && standingsSort.key === col.key;
         const arrow = active ? (standingsSort.dir === 1 ? ' ▲' : ' ▼') : '';
         return `<th class="${col.cls} sortable${active ? ' sorted' : ''}" data-sort="${col.key}" title="Sort by ${col.label}">${col.label}${arrow}</th>`;
@@ -475,6 +475,14 @@ function standingsHeadRow() {
 // first row (used to continue ranking across wild-card pools).
 function standingsRows(teams, rankOffset) {
     const offset = rankOffset || 0;
+
+    // Every team's official rank in this grouping (natural order), captured
+    // BEFORE any user sort. The # column always shows it — so after sorting
+    // by e.g. Team, the first row reads '7 ANA' and you still know its true
+    // standing (consistent with NHL.com wild-card views).
+    const rankOf = new Map();
+    teams.forEach((t, i) => rankOf.set(t.abbrev, offset + i + 1));
+
     let rows;
     if (standingsSort) {
         const { key, dir } = standingsSort;
@@ -488,10 +496,10 @@ function standingsRows(teams, rankOffset) {
         rows = teams;
     }
 
-    return rows.map((t, i) => {
+    return rows.map((t) => {
         const fav = _favorites.has(t.abbrev) ? ' standings-fav' : '';
         const wcBadge = t.inWildcardSpot ? '<span class="wc-badge">WC</span>' : '';
-        const rank = standingsSort ? '' : String(offset + i + 1);
+        const rank = rankOf.get(t.abbrev);
         return (
             `<tr class="${fav.trim()}" data-team="${t.abbrev}">` +
             `<td class="st-rank">${rank}${wcBadge}</td>` +
