@@ -1774,13 +1774,24 @@ h1 {
     color: #ff6b6b;
 }
 
+/* Grouping buttons + updated-stamp pin themselves just below the app's
+   sticky header while the standings table scrolls underneath. The app's
+   header height varies (view-dependent + breakpoint), so the offset is
+   supplied as a CSS var from JS (see positionStandingsStickyHeader). */
 .standings-header {
+    position: sticky;
+    top: var(--sticky-top-h, 0px);
+    z-index: 80;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 12px;
+    /* Solid backdrop so rows scrolled beneath are fully hidden, matching
+       .sticky-top's panel color. */
+    background: #1a1a2e;
+    padding: 8px 4px;
 }
 
 .standings-controls {
@@ -1837,7 +1848,12 @@ h1 {
 }
 
 .standings-table thead th {
-    background: rgba(255, 255, 255, 0.08);
+    /* Column headers stay visible under the pinned grouping row for the
+       same reason — offsets also set from JS. */
+    position: sticky;
+    top: calc(var(--sticky-top-h, 0px) + var(--standings-header-h, 0px));
+    z-index: 79;
+    background: #202036; /* opaque stand-in for the table's translucent bg */
     font-size: 0.85em;
     color: rgba(255, 255, 255, 0.8);
 }

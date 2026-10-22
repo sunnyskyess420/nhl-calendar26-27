@@ -542,7 +542,36 @@ function renderStandings() {
         (updated ? `<div class="standings-updated">Updated ${updated}</div>` : '') +
         '</div>' +
         groups[standingsGroup];
+
+    // Now that the DOM exists, pin the controls + column headers below the
+    // app's sticky header (heights were measured, not assumed).
+    positionStandingsStickyHeader();
 }
+
+// Measure the app's sticky header and the pinned standings controls so
+// CSS can pin the controls + each table's column headers directly below
+// the header without hardcoding heights (the header differs on mobile). 
+function positionStandingsStickyHeader() {
+    const container = document.getElementById('standingsView');
+    if (!container || container.classList.contains('hidden')) return;
+
+    const stickyEl = document.querySelector('.sticky-top');
+    const headerEl = container.querySelector('.standings-header');
+    const stickyH = stickyEl ? stickyEl.getBoundingClientRect().height : 0;
+    const headerH = headerEl ? headerEl.offsetHeight : 0;
+
+    container.style.setProperty('--sticky-top-h', stickyH + 'px');
+    container.style.setProperty('--standings-header-h', headerH + 'px');
+}
+
+// Keep the pinned rows aligned when the viewport (and the app header with
+// it) changes size — the breakpoint re-render handles content, this keeps
+// offsets accurate between breakpoints.
+let _standingsResizeTimer = null;
+window.addEventListener('resize', () => {
+    clearTimeout(_standingsResizeTimer);
+    _standingsResizeTimer = setTimeout(positionStandingsStickyHeader, 150);
+});
 
 // Group buttons + sortable column headers (event delegation on the container).
 document.getElementById('standingsView').addEventListener('click', (e) => {
