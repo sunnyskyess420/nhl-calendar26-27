@@ -588,25 +588,37 @@ async function loadSchedule(date) {
         if (!initialTodayScrollDone) {
             initialTodayScrollDone = true;
 
-            requestAnimationFrame(() => {
+            // Otherwise the browser restores the previous session's scroll
+            // position on reload AFTER our scroll fires and wins, landing the
+            // user at the bottom of the day instead of the top.
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+            const scrollToTodayTop = () => {
                 const todayEl =
                     currentView === 'week'
                         ? document.querySelector('.week-day-card.is-today')
                         : document.querySelector('.day-cell.today');
 
-                if (todayEl) {
-                    const headerOffset = 160; // matches the sticky-header allowance used elsewhere
-                    const top =
-                        todayEl.getBoundingClientRect().top +
-                        window.pageYOffset -
-                        headerOffset;
+                if (!todayEl) return;
 
-                    window.scrollTo({
-                        top: Math.max(0, top),
-                        behavior: 'auto'
-                    });
-                }
-            });
+                const headerOffset = 160; // matches the sticky-header allowance used elsewhere
+                const top = Math.max(0,
+                    todayEl.getBoundingClientRect().top +
+                    window.pageYOffset -
+                    headerOffset);
+
+                window.scrollTo({ top, behavior: 'auto' });
+            };
+
+            requestAnimationFrame(scrollToTodayTop);
+            // Team-logo images, today strip and webfonts can reflow the page
+            // right after first render, pushing today's cell down again.
+            // Re-apply for about a second while the layout settles. Anything
+            // later than that is the user scrolling deliberately.
+            const refix = () => requestAnimationFrame(scrollToTodayTop);
+            setTimeout(refix, 350);
+            setTimeout(refix, 1000);
+            window.addEventListener('load', () => requestAnimationFrame(refix), { once: true });
         }
         // If today happens to be in the month we just loaded, the today strip
         // can use gamesData directly. Otherwise refreshTodayStrip will fetch
