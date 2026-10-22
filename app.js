@@ -457,9 +457,22 @@ const STANDINGS_COLUMNS = [
     { key: 'otLosses',    label: 'OTL',          cls: 'st-num' },
     { key: 'points',      label: 'PTS',          cls: 'st-num st-pts' },
     { key: 'goalDifferential', label: 'GD',      cls: 'st-num' },
-    { key: 'streak',      label: 'Strk',         cls: 'st-num' },
-    { key: 'last10',      label: 'L10',          cls: 'st-num' },
+    { key: 'streak',      label: 'Strk',         cls: 'st-num st-strk' },
+    { key: 'last10',      label: 'L10',          cls: 'st-num st-l10' },
 ];
+
+// Numeric view of a streak for sorting: W3(203) > W2(202) > OT2(102) > L3(3).
+// Streaks sort by quality (W beats OT beats L) then length.
+function standingsStreakValue(team) {
+    const order = team.streakCode === 'W' ? 2 : team.streakCode === 'O' ? 1 : 0;
+    return order * 100 + (team.streakCount || 0);
+}
+
+// Points earned over the last 10 games (W = 2, OTL = 1) as a sortable number.
+function standingsL10Value(team) {
+    const [w, , ot] = String(team.last10).split('-').map(Number);
+    return (w || 0) * 2 + (ot || 0);
+}
 
 // Build <th> row for the table, marking the currently sorted column.
 function standingsHeadRow() {
@@ -488,30 +501,37 @@ function standingsRows(teams, rankOffset) {
         const { key, dir } = standingsSort;
         rows = [...teams].sort((a, b) => {
             if (key === 'team') return dir * a.name.localeCompare(b.name);
-            if (key === 'streak') return dir * (standingsStreakText(b).localeCompare(standingsStreakText(a)));
-            if (key === 'last10') return dir * (b.last10.localeCompare(a.last10));
+            if (key === 'streak') return dir * (standingsStreakValue(b) - standingsStreakValue(a));
+            if (key === 'last10') return dir * (standingsL10Value(b) - standingsL10Value(a));
             return dir * ((b[key] || 0) - (a[key] || 0));
         });
     } else {
         rows = teams;
     }
 
+    // Column index of the active sort, for tinting its body cells.
+    const sortIdx = standingsSort
+        ? STANDINGS_COLUMNS.findIndex(c => c.key === standingsSort.key)
+        : -1;
+
     return rows.map((t) => {
         const fav = _favorites.has(t.abbrev) ? ' standings-fav' : '';
         const wcBadge = t.inWildcardSpot ? '<span class="wc-badge">WC</span>' : '';
         const rank = rankOf.get(t.abbrev);
+        // Per-td tint class helper: idx is that td's column position.
+        const tint = (idx) => (idx === sortIdx ? ' st-col-sorted' : '');
         return (
             `<tr class="${fav.trim()}" data-team="${t.abbrev}">` +
-            `<td class="st-rank">${wcBadge}${rank}</td>` +
-            `<td class="st-team" title="${t.name} — ${t.division} (${t.conference})">${t.abbrev}</td>` +
-            `<td class="st-num">${t.gamesPlayed}</td>` +
-            `<td class="st-num">${t.wins}</td>` +
-            `<td class="st-num">${t.losses}</td>` +
-            `<td class="st-num">${t.otLosses}</td>` +
-            `<td class="st-num st-pts"><strong>${t.points}</strong></td>` +
-            `<td class="st-num">${standingsDiffText(t)}</td>` +
-            `<td class="st-num">${standingsStreakText(t)}</td>` +
-            `<td class="st-num">${t.last10}</td>` +
+            `<td class="st-rank${tint(0)}">${wcBadge}${rank}</td>` +
+            `<td class="st-team${tint(1)}" title="${t.name} — ${t.division} (${t.conference})">${t.abbrev}</td>` +
+            `<td class="st-num${tint(2)}">${t.gamesPlayed}</td>` +
+            `<td class="st-num${tint(3)}">${t.wins}</td>` +
+            `<td class="st-num${tint(4)}">${t.losses}</td>` +
+            `<td class="st-num${tint(5)}">${t.otLosses}</td>` +
+            `<td class="st-num st-pts${tint(6)}"><strong>${t.points}</strong></td>` +
+            `<td class="st-num${tint(7)}">${standingsDiffText(t)}</td>` +
+            `<td class="st-num st-strk${tint(8)}">${standingsStreakText(t)}</td>` +
+            `<td class="st-num st-l10${tint(9)}">${t.last10}</td>` +
             '</tr>'
         );
     }).join('');

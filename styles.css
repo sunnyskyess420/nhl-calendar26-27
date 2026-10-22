@@ -1922,6 +1922,21 @@ h1 {
     background: rgba(255, 255, 255, 0.03);
 }
 
+/* The sorted column gets a faint tint on its body cells so, with the
+   pinned header up, rows still read under the right statistic. */
+.standings-table td.st-col-sorted {
+    background: rgba(120, 120, 200, 0.10);
+}
+
+/* Mobile: Strk and L10 are the least essential columns — drop them below
+   600px so GP..GD fit without cramping. */
+@media (max-width: 600px) {
+    .standings-table .st-strk,
+    .standings-table .st-l10 {
+        display: none;
+    }
+}
+
 /* Favorite teams get the same gold treatment as the calendar pills. */
 .standings-table tbody tr.standings-fav {
     background: rgba(255, 215, 0, 0.08);
