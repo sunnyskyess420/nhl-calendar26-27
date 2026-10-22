@@ -601,7 +601,15 @@ async function loadSchedule(date) {
 
                 if (!todayEl) return;
 
-                const headerOffset = 160; // matches the sticky-header allowance used elsewhere
+                // The sticky overlay (.sticky-top: month title, today strip,
+                // fav countdown, view tabs, weekday row) covers the top of the
+                // viewport, so the offset must be its real rendered height plus
+                // its margin-bottom - a hardcoded 160px shortchanges it and
+                // leaves today's first games hidden inside the overlay.
+                const stickyEl = document.querySelector('.sticky-top');
+                const headerOffset = stickyEl
+                    ? stickyEl.getBoundingClientRect().height + 20
+                    : 160; // fallback if the sticky block is missing
                 const top = Math.max(0,
                     todayEl.getBoundingClientRect().top +
                     window.pageYOffset -
