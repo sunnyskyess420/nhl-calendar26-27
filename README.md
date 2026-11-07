@@ -7,6 +7,12 @@ trackers, no mock data.
 
 Live site: **https://nhl-calendar26-27.vercel.app**
 
+> **Not affiliated with the NHL.** This is an unofficial, fan-made project. It
+> is not endorsed by, sponsored by, or affiliated with the National Hockey
+> League or any of its member clubs. "NHL", team names, and team marks are the
+> property of their respective owners. All game data is retrieved from the
+> NHL's publicly accessible web API.
+
 ## Features
 
 - **Month view** — desktop-style calendar grid with team-colored game pills,
@@ -83,3 +89,7 @@ files from the root.
 
 All data is fetched server-side from the NHL's public web API
 (`api-web.nhle.com`). No third-party services, no API keys, no databases.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
