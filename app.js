@@ -523,7 +523,15 @@ function standingsRows(teams, rankOffset) {
         return (
             `<tr class="${fav.trim()}" data-team="${t.abbrev}">` +
             `<td class="st-rank${tint(0)}">${wcBadge}${rank}</td>` +
-            `<td class="st-team${tint(1)}" title="${t.name} — ${t.division} (${t.conference})">${t.abbrev}</td>` +
+            `<td class="st-team${tint(1)}" title="${t.name} — ${t.division} (${t.conference})">` +
+                `<span class="st-team-cell">` +
+                    `<img class="st-team-logo"` +
+                        ` src="https://assets.nhle.com/logos/nhl/svg/${t.abbrev}_light.svg"` +
+                        ` alt="" width="20" height="20" loading="lazy" decoding="async"` +
+                        ` onerror="this.remove()">` +
+                    `<span class="st-team-abbr">${escapeHtml(t.abbrev)}</span>` +
+                `</span>` +
+            `</td>` +
             `<td class="st-num${tint(2)}">${t.gamesPlayed}</td>` +
             `<td class="st-num${tint(3)}">${t.wins}</td>` +
             `<td class="st-num${tint(4)}">${t.losses}</td>` +
