@@ -1895,6 +1895,23 @@ h1 {
     text-align: left;
 }
 
+/* Team logo beside the abbreviation. NHL logo SVGs are 3:2 (960x640), so
+   height drives the size and width follows — a square box would shrink the
+   mark. The _light variant is kept for all teams (consistent with the today
+   strip); a stacked white drop-shadow halo compensates for low-contrast
+   marks (TBL navy, TOR blue, CBJ navy) on the dark rows while barely
+   affecting bright marks (EDM/PHI orange). Tuning: raise the alpha for more
+   pop. onerror in app.js removes a failed img. */
+.standings-table .st-team-logo {
+    height: 1.5em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 0.45em;
+    filter:
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.55))
+        drop-shadow(0 0 1px rgba(255, 255, 255, 0.35));
+}
+
 .standings-table .st-pts {
     border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
